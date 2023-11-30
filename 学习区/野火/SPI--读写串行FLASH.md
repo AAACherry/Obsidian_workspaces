@@ -207,18 +207,55 @@ SCK 需要驱动，所以也是需要发送数据的。而 flash 可以忽略这
 
 ## P 57 初始化结构体讲解
 
+![[../../annex/SPI--读写串行FLASH_image_23.png]]
+
+有很多是带有 I²S 的，说明这些函数跟 IIS 是共用的。
+
+![[../../annex/SPI--读写串行FLASH_image_24.png]]
+跟其它外设一样，STM 32 标准库提供了 SPI 初始化结构体及初始化函数来配置 SPI 外设。初始化结构体及函数定义在库文件“stm 32 f 10 x_spi. H”及“stm 32 f 10 x_spi. C”中，编程时我们可以结合这两个文件内的注释使用或参考库帮助文档。
+
+![[../../annex/Pasted image 20231130224915.png]]
+
+![[../../annex/Pasted image 20231130225256.png]]
+
+SPI_Direction
+ 本成员设置 SPI 的通讯方向，可设置为双线全双工(<font color="#00b050">SPI_Direction_2Lines_FullDuplex</font>)，双线只接收(SPI_Direction_2Lines_RxOnly)，单线只接收(SPI_Direction_1Line_Rx)、单线只发送模式(SPI_Direction_1Line_Tx)。
+
+
+SPI_Mode
+ 本成员设置 SPI 工作在主机模式(SPI_Mode_Master)或从机模式(SPI_Mode_Slave  )，这两个模式的<font color="#00b0f0">最大区别为 SPI 的 SCK 信号线的时序</font>，SCK 的时序是由通讯中的主机产生的。若被配置为从机模式，STM32的 SPI 外设将接受外来的 SCK 信号。
+
+SPI_DataSize
+ 本成员可以选择 SPI 通讯的数据帧大小是为8位(SPI_DataSize_8b)还是16位(SPI_DataSize_16b)。
+ 此处说的 8 位和 16 位只是配置这个数据一帧的长度。
+
+SPI_CPOL 和 SPI_CPHA
+ 这两个成员配置 SPI 的时钟极性 CPOL 和时钟相位 CPHA，这两个配置影响到 SPI 的通讯模式，
+ 时钟极性 CPOL 成员，可设置为高电平 (SPI_CPOL_High)或低电平 (SPI_CPOL_Low )。
+ 时钟相位 CPHA 则可以设置为 SPI_CPHA_1 Edge (在 SCK 的奇数边沿采集数据) 或 SPI_CPHA_2 Edge (在 SCK 的偶数边沿采集数据) 。
+
+SPI_NSS
+ 本成员配置 NSS 引脚的使用模式，可以选择为硬件模式 (SPI_NSS_Hard )与软件模式 (<font color="#00b050">SPI_NSS_Soft</font>  )，在硬件模式中的 SPI 片选信号由 SPI 硬件自动产生，而软件模式则需要亲自把相应的 GPIO 端口拉高或置低产生非片选和片选信号。
+ 实际中软件模式应用比较多。
+ 到时候配置软件模式，初始化的时候，只要把 CLK、MISO、MOSI 这三根线配置成复用推挽输出/输入模式，NSS 就配置成普通的推挽输出。
+ ![[../../annex/Pasted image 20231130230043.png]]
+
+SPI_BaudRatePrescaler
+ 本成员设置波特率分频因子，分频后的时钟即为 SPI 的 SCK 信号线的时钟频率。这个成员参数可设置为 fpclk 的 2、4、6、8、16、32、64、128、256分频。
+ ![[../../annex/Pasted image 20231130230032.png]]
+
+SPI_FirstBit
+ 所有串行的通讯协议都会有 MSB 先行 (高位数据在前)还是 LSB 先行 (低位数据在前)的问题，而 STM 32 的 SPI 模块可以通过这个结构体成员，对该特性编程控制。
+
+SPI_CRCPolynomial
+ 这是 SPI 的 CRC 校验中的多项式，若我们使用 CRC 校验时，就使用这个成员的参数 (多项式)，来计算 CRC 的值。
+
+<font color="#ff0000">配置完这些结构体成员后，要调用 SPI_Init 函数把这些参数写入到寄存器中，实现 SPI 的初始化，然后调用 SPI_Cmd 来使能 SPI 外设</font>。
 
 
 
 
-
-
-
-
-
-
-
-
+## P 58 Flash 芯片介绍
 
 
 
