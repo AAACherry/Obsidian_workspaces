@@ -1,0 +1,14 @@
+[
+  [
+    {
+      "role": "user",
+      "content": "拟写一份《自我介绍》，巧解姓名，关联个人特征、性格、爱好等，\n内容须新意，便于对方记忆，并适用于任何场景（职场、求职、社交等）。\n"
+    }
+  ],
+  [
+    {
+      "role": "user",
+      "content": "Write a Self-introduction, skillfully understand the name, related to personal characteristics, personality, hobbies, etc.\nThe content should be original, easy to remember, and applicable to any situation (workplace, job hunting, networking, etc.).\n"
+    }
+  ]
+]
