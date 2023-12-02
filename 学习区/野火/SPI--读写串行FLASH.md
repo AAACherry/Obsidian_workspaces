@@ -292,54 +292,54 @@ Nandflash 可以以一个块或扇区位单位进行读写（存储空间存储�
 没有带括号的这些内容就是由控制器传输给 flash
 括号中的值表示返回的是该数据位的寄存器的值
 
-![[../../annex/Pasted image 20231202212520.png]]
+![[../../annex/SPI--读写串行FLASH_image_35.png]]
 规定了一些特殊的时序，flash 内部进行协调，如：约定好了接收到第一个字节为 0x05 就认为是读取状态寄存器的命令。然后就会根据约定返回寄存器的值。
 如果没有结束通讯，会不断的返回状态寄存器的值，STM 32 接收到第 0 位的字节后，读取到了最低位，就能够知道 BUSY 位是否为 1 了，进行确认 Flash 是否忙碌。
 
-![[../../annex/Pasted image 20231202213021.png]]
+![[../../annex/SPI--读写串行FLASH_image_36.png]]
 Sector Erase，每一次会擦除 4 KB，该命令的代码是 0x20。向 Flash 芯片发送代码 0x20，后面的三个字节是地址。
 Flash 的地址一共由 24 位来表示，所以需要通过 3 个字节来传输要擦除的地址。
 将 24 位的地址分成 3 个字节发送给 Flash。
 Flash 接收到接收到代码和地址后就会对相应的存储空间进行擦除。
 擦除之后又可以读取状态寄存器来了解是否擦除完毕。如果擦除完成就可以向它写入数据。
 
-![[../../annex/Pasted image 20231202213616.png]]
+![[../../annex/SPI--读写串行FLASH_image_37.png]]
 想要写它写入数据的命令：Page Program（页写入），代码是 0x02。
 同样的，跟擦除类似，需要先给它一个三个字节的 24 位地址。
 发送了地址之后，再向它写入数据。
 STM 32 向 Flash 写入数据，应该是没有括号的。这个数据是 STM 32 传过去的。
 
-![[../../annex/Pasted image 20231202213651.png]]
+![[../../annex/SPI--读写串行FLASH_image_38.png]]
 读取数据过程同理。
 
-![[../../annex/Pasted image 20231202213738.png]]
+![[../../annex/SPI--读写串行FLASH_image_39.png]]
 这些是 Flash 的 ID 号，dummy 其实就是空白字节。
 STM 32 可以发送命令代码之后，再随便发几个无关的数据，dummy 可以是任意数据。
 然后在第 4 个字节再发送 0x00
 在第 5 个字节 flash 就会返回 MF0~7、ID0~7 (返回下图中的几个值)
-![[../../annex/Pasted image 20231202213830.png]]
+![[../../annex/SPI--读写串行FLASH_image_40.png]]
 ID 号的作用：特别在开机检测的时候，一般是不知道 Flash 芯片是否正常连接的。
 可以利用 ID 号，通过读取 ID 号和它固定的 EF 或 4017 的值是否相等来确认 Flash 芯片是否正常工作。
 看 STM 32 和 Flash 是否能够正常连接、正常通讯。
 
 
-![[../../annex/Pasted image 20231202232428.png]]
+![[../../annex/SPI--读写串行FLASH_image_41.png]]
 Power -down，进行进入低功耗模式。
 
-![[../../annex/Pasted image 20231202232508.png]]
+![[../../annex/SPI--读写串行FLASH_image_42.png]]
 Release Power down or HPM / Device ID，唤醒命令，重新进入正常的状态。Flash 也会返回一个 ID 号。
 
 
 
-![[../../annex/Pasted image 20231202232735.png]]
+![[../../annex/SPI--读写串行FLASH_image_43.png]]
 Read 读取时序图
 传回地址是通过 DO 引脚（flash 的 output 引脚，即 MISO 引脚）的
 
-![[../../annex/Pasted image 20231202232828.png]]
+![[../../annex/SPI--读写串行FLASH_image_44.png]]
 Page program 写入时序图
 一次可以写入 1~256 个字节
 一般会严格要求自己的输入参数是严格等于 sector（扇区）的基地址的，保证一擦除 4096 字节就刚好是该扇区
-![[../../annex/Pasted image 20231202233204.png]]
+![[../../annex/SPI--读写串行FLASH_image_45.png]]
 
 
 
@@ -386,7 +386,7 @@ STM 32 与 FLASH 之间的通信操作, 包括写入、擦除、读取等操作,
 
 ## P 59 代码讲解-初始化 SPI
 
-![[../../annex/Pasted image 20231202233834.png]]
+ ![[../../annex/SPI--读写串行FLASH_image_46.png]]
 
 
 
