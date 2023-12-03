@@ -387,7 +387,7 @@ STM 32 与 FLASH 之间的通信操作, 包括写入、擦除、读取等操作,
 ## P 59 代码讲解-初始化 SPI
 
  ![[../../annex/SPI--读写串行FLASH_image_46.png]]
-
+![[../../annex/SPI--读写串行FLASH_image_47.png]]
 
 
 
