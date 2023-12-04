@@ -390,17 +390,212 @@ STM 32 与 FLASH 之间的通信操作, 包括写入、擦除、读取等操作,
 ![[../../annex/SPI--读写串行FLASH_image_47.png]]
 
 
+###### 代码
+
+```bsp_spi_flash.c
+/**
+  ******************************************************************************
+  * @file    bsp_i2c_ee.c
+  * @author  STMicroelectronics
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   SPI-FLASH驱动
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+
+#include "./flash/bsp_spi_flash.h"
+#include "./usart/bsp_usart.h"		
+
+static __IO uint32_t SPITimeout = SPIT_LONG_TIMEOUT;
+
+static uint32_t SPI_TIMEOUT_UserCallback(uint8_t errorCode);
+
+
+/**
+  * @brief  SPI I/O配置
+  * @param  无
+  * @retval 无
+  */
+static void SPI_GPIO_Config(void)
+{
+  GPIO_InitTypeDef  GPIO_InitStructure; 
+
+	/* 使能与 SPI 有关的时钟 */
+	FLASH_SPI_APBxClock_FUN ( FLASH_SPI_CLK, ENABLE );
+	FLASH_SPI_GPIO_APBxClock_FUN ( FLASH_SPI_GPIO_CLK, ENABLE );
+	
+    
+  /* MISO、MOSI、SCK*/
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_SCK_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	        
+  GPIO_Init(FLASH_SPI_SCK_PORT, &GPIO_InitStructure);
+
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MOSO_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	        
+  GPIO_Init(FLASH_SPI_MOSI_PORT, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MISO_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;	        
+  GPIO_Init(FLASH_SPI_MISO_PORT, &GPIO_InitStructure);
+	
+	//初始化CS引脚，使用软件控制，所以直接设置成推挽输出
+	GPIO_InitStructure.GPIO_Pin = FLASH_SPI_CS_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;	        
+  GPIO_Init(FLASH_SPI_CS_PORT, &GPIO_InitStructure);
+	
+	FLASH_SPI_CS_HIGH;
+	
+}
+
+
+/**
+  * @brief  SPI 工作模式配置
+  * @param  无
+  * @retval 无
+  */
+static void SPI_Mode_Config(void)
+{
+  SPI_InitTypeDef  SPI_InitStructure.; 
+
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
+	//SPI 使用模式3
+	SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
+	SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
+	SPI_InitStructure.SPI_CRCPolynomial = 0;//不适用CRC功能，数值随便写
+	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
+	SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;//双线全双工
+	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;//MSB先行
+	SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
+	
+	SPI_Init(FLASH_SPIx,&SPI_InitStructure);	//写入配置到寄存器
+	
+	SPI_Cmd(FLASH_SPIx,ENABLE);	//使能SPI
+	
+}
 
 
 
+/**
+  * @brief  SPI 初始化
+  * @param  无
+  * @retval 无
+  */
+void SPI_FLASH_Init(void)
+{
+
+	SPI_GPIO_Config();
+	SPI_Mode_Config();
+	
+//  I2C_GPIO_Config(); 
+// 
+//  I2C_Mode_Configu();
+
+}
+
+
+/**
+  * @brief  Basic management of the timeout situation.
+  * @param  errorCode：错误代码，可以用来定位是哪个环节出错.
+  * @retval 返回0，表示SPI读取失败.
+  */
+static  uint32_t SPI_TIMEOUT_UserCallback(uint8_t errorCode)
+{
+  /* Block communication and all processes */
+  FLASH_ERROR("I2C 等待超时!errorCode = %d",errorCode);
+  
+  return 0;
+}
+/*********************************************END OF FILE**********************/
+
+
+```
+
+
+```bsp_spi_flash.h
+#ifndef __SPI_FLASH_H
+#define	__SPI_FLASH_H
+
+
+#include "stm32f10x.h"
+
+//如果使用了霸道开发板，就把宏配置成1，指南者配置成0
+#define USE_BD		1
+
+/**************************I2C参数定义，I2C1或I2C2********************************/
+#define             FLASH_SPIx                                SPI1
+#define             FLASH_SPI_APBxClock_FUN                   RCC_APB2PeriphClockCmd
+#define             FLASH_SPI_CLK                             RCC_APB2Periph_SPI1
+#define             FLASH_SPI_GPIO_APBxClock_FUN              RCC_APB2PeriphClockCmd
 
 
 
+#define             FLASH_SPI_SCK_PORT                        GPIOA   
+#define             FLASH_SPI_SCK_PIN                         GPIO_Pin_5
+
+#define             FLASH_SPI_MOSI_PORT                       GPIOA 
+#define             FLASH_SPI_MOSO_PIN                        GPIO_Pin_7
+
+#define             FLASH_SPI_MISO_PORT                       GPIOA 
+#define             FLASH_SPI_MISO_PIN                        GPIO_Pin_6
+
+#define             FLASH_SPI_CS_PORT                         GPIOA 
+#define             FLASH_SPI_CS_PIN                          GPIO_Pin_4
+
+#if (USE_BD == 1)
+	#define             FLASH_SPI_GPIO_CLK                        RCC_APB2Periph_GPIOA
+	
+	#define             FLASH_SPI_CS_PORT                         GPIOA 
+	#define             FLASH_SPI_CS_PIN                          GPIO_Pin_4
+#else
+	#define             FLASH_SPI_GPIO_CLK                       (RCC_APB2Periph_GPIOA|RCC_APB2Periph_GPIOC)
+
+	#define             FLASH_SPI_CS_PORT                         GPIOC 
+	#define             FLASH_SPI_CS_PIN                          GPIO_Pin_0
+#endif
 
 
+//CS引脚配置
+#define FLASH_SPI_CS_HIGH			GPIO_SetBits(FLASH_SPI_CS_PORT,FLASH_SPI_CS_PIN);
+#define FLASH_SPI_CS_LOW			GPIO_ResetBits(FLASH_SPI_CS_PORT,FLASH_SPI_CS_PIN);
 
 
+/*等待超时时间*/
+#define SPIT_FLAG_TIMEOUT 								((uint32_t)0x1000)	
+#define SPIT_LONG_TIMEOUT 								((uint32_t)(10 * SPIT_LONG_TIMEOUT))			
 
+/*信息输出*///方便调试，方便发布程序
+#define FLASH_DEBUG_ON         0	//调试的时候配置成1，整个程序就能输出各种各样的调试信息；但是配置成0后，整个工程这个语句涉及到的东西的调试信息都不会再输出出来了。
+
+//调试的时候可能需要printf("111");但是调试完可能不需要这个东西输出了，就可以使用这种方式：
+//FLASH_INFO通常作为信息输出，FLASH_ERROR用来输出错误，FLASH_DEBUG用来做输出调试信息
+#define FLASH_INFO(fmt,arg...)           printf("<<-FLASH-INFO->> "fmt"\n",##arg)	//fmt其实就是作为printf函数的一个输入。arg通过两个##连接起来(其实就是一个连接符)
+#define FLASH_ERROR(fmt,arg...)          printf("<<-FLASH-ERROR->> "fmt"\n",##arg)
+#define FLASH_DEBUG(fmt,arg...)          do{\
+                                          if(FLASH_DEBUG_ON)\
+                                          printf("<<-FLASH-DEBUG->> [%s][%d]"fmt"\n",__FILE__,__LINE__, ##arg);\
+                                          }while(0)	//为1输出调试信息，为0就不执行，相当于空操作
+//__LINE__可以直接输出这个语句所在的行号,__LINE__就变成前面[%d]的%d的位置。如果还行知道在哪个文件就再加个[%s]
+
+													
+																					
+void SPI_FLASH_Init(void);																					
+																					
+
+#endif /* __SPI_FLASH_H */
+
+```
 
 #### B 站 AI 视频总结
 
@@ -436,6 +631,10 @@ STM 32 与 FLASH 之间的通信操作, 包括写入、擦除、读取等操作,
 51:11  选择软件 SPI 控制，方便添加多个设备
 53:48 初始化完成后，要开始测试程序是否正常。
 
+
+
+
+## P 60 代码讲解--初始化 SPI
 
 
 
