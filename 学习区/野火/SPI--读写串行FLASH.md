@@ -648,20 +648,422 @@ DI 线发送给 flash 的数据 flash 会忽略这些数据。
 假如纯粹写一个接收数据的函数，不写写入语句，是没有时序的，没有时序就没法接收数据。
 （时钟是由主机产生的，但是没有发送数据的时候 STM 32 是不会产生时钟的）
 
+右移 16 位
+![[../../annex/SPI--读写串行FLASH_image_50.png]]
+
+![[../../annex/SPI--读写串行FLASH_image_51.png]]
+对这个数字再跟 0xff 进行与运算，得到结果本身是什么就是什么，忽略掉前面的（高位的 0）就可以直接发送 1 个字节了
+
+![[../../annex/SPI--读写串行FLASH_image_52.png]]
+同样的，发送第二个字节。
+
+![[../../annex/SPI--读写串行FLASH_image_53.png]]
+启用内部时序进行擦除是很耗时的，我们可以通过读取状态寄存器 BUSY 位，来知道是否擦除完成
+
+堆栈（内存）问题的话，一般会在 stm32f10_x_it.c 文件中的 HardFault（跳到这里来）。然后我们可以尝试在这里加一个断点。
+![[../../annex/SPI--读写串行FLASH_image_54.png]]
+如果跳到这里来，十有八九是内存错误。
+两个选择：
+1、把启动文件 startup_stm32f10x_hd.s 中的堆栈空间改大一点 
+2、或者更方便的，直接把 buff 4096 那么大的空间定义成全局变量。（全局变量就不是定义在堆栈空间了，而是定义在内存的空余的空间，就不会出现错误了）（即，将定义改到函数外面）
+
+
+![[../../annex/SPI--读写串行FLASH_image_55.png]]
+前面有一些地方不是 0xff。按理说每个字节都是输出 0xff，擦除完之后全为 1 
+
+这个检测有一个缺陷，因为是检测是否等于 0xff 。但是如果 flash 本身就是干净的（全为 0xff ），是没法校验函数是否正常的。
+
+原因是因为 FLASH 的内存太小，后面的数据把前面的挤掉了
+
+将函数 SPI_WaitForWriteEnd (); 放到写入/擦除函数操作（FLASH_SPI_CS_HIGH;）的后面，那么后面调用这个函数的时候就不需要再加等待了。
+
+注意，写入的数据不能超过256个字节。
+想要写入一个扇区，可能就需要多次调用了。
+
+
+![[../../annex/SPI--读写串行FLASH_image_56.png]]
+因为 flash 只能把数据从 1 改成 0，现在没有擦除，直接重新写了。那么它写入的数据就还是把 1 的地方
+
+![[../../annex/SPI--读写串行FLASH_image_57.png]]
+例如这样，不能从 0 改成 1，只能从 1 改成 0。而这个第二位又是 1，所以不变，所以存储出来还是 0x02
+所以在写入之前必须要加入擦除操作
+
+###### 代码
+```bsp_spi_flash.c
+/**
+  ******************************************************************************
+  * @file    bsp_spi_flash.c
+  * @author  STMicroelectronics
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   SPI-FLASH驱动
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+
+#include "./flash/bsp_spi_flash.h"
+#include "./usart/bsp_usart.h"		
+
+static __IO uint32_t SPITimeout = SPIT_LONG_TIMEOUT;
+
+static uint32_t SPI_TIMEOUT_UserCallback(uint8_t errorCode);
+
+
+/**
+  * @brief  SPI I/O配置
+  * @param  无
+  * @retval 无
+  */
+static void SPI_GPIO_Config(void)
+{
+  GPIO_InitTypeDef  GPIO_InitStructure; 
+
+	/* 使能与 SPI 有关的时钟 */
+	FLASH_SPI_APBxClock_FUN ( FLASH_SPI_CLK, ENABLE );
+	FLASH_SPI_GPIO_APBxClock_FUN ( FLASH_SPI_GPIO_CLK, ENABLE );
+	
+    
+  /* MISO、MOSI、SCK*/
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_SCK_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	        
+  GPIO_Init(FLASH_SPI_SCK_PORT, &GPIO_InitStructure);
+
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MOSO_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	        
+  GPIO_Init(FLASH_SPI_MOSI_PORT, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MISO_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;	        
+  GPIO_Init(FLASH_SPI_MISO_PORT, &GPIO_InitStructure);
+	
+	//初始化CS引脚，使用软件控制，所以直接设置成推挽输出
+	GPIO_InitStructure.GPIO_Pin = FLASH_SPI_CS_PIN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;	        
+  GPIO_Init(FLASH_SPI_CS_PORT, &GPIO_InitStructure);
+	
+	FLASH_SPI_CS_HIGH;
+	
+}
+
+
+/**
+  * @brief  SPI 工作模式配置
+  * @param  无
+  * @retval 无
+  */
+static void SPI_Mode_Config(void)
+{
+  SPI_InitTypeDef  SPI_InitStructure; 
+
+	SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
+	//SPI 使用模式3
+	SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
+	SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
+	SPI_InitStructure.SPI_CRCPolynomial = 0;//不适用CRC功能，数值随便写
+	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
+	SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;//双线全双工
+	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;//MSB先行
+	SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
+	
+	SPI_Init(FLASH_SPIx,&SPI_InitStructure);	//写入配置到寄存器
+	
+	SPI_Cmd(FLASH_SPIx,ENABLE);	//使能SPI
+	
+}
 
 
 
+/**
+  * @brief  SPI 初始化
+  * @param  无
+  * @retval 无
+  */
+void SPI_FLASH_Init(void)
+{
+
+	SPI_GPIO_Config();
+	SPI_Mode_Config();
+
+}
+
+
+//发送并接收一个字节
+uint8_t SPI_FLASH_Send_Byte(uint8_t data)
+{
+	SPITimeout = SPIT_FLAG_TIMEOUT;
+	//检查并等待至TX缓冲区为空
+	while(SPI_I2S_GetFlagStatus(FLASH_SPIx,SPI_I2S_FLAG_TXE) == RESET)//RESET，非空。非空死循环等待
+	{//一直不是空的话会卡死在这里,所以加了这个防止一直卡死。如果SPITimeout非0就-1
+		if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(0);
+	}
+	
+	//程序执行到此处，TX缓冲区已为空
+	SPI_I2S_SendData(FLASH_SPIx,data);
+
+	SPITimeout = SPIT_FLAG_TIMEOUT;	
+	//检查并等待至RX缓冲区为非空
+	while(SPI_I2S_GetFlagStatus(FLASH_SPIx,SPI_I2S_FLAG_RXNE) == RESET)//RESET，非空。非空死循环等待
+	//程序执行到此处，说明数据发送完毕，并接收到1个字节
+	{
+		if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(0);
+	}
+	
+	return SPI_I2S_ReceiveData(FLASH_SPIx);
+	
+	
+}
+
+uint8_t SPI_FLASH_Read_Byte(void)
+{
+	return SPI_FLASH_Send_Byte(DUMMY);
+}
+
+//读取ID号
+uint32_t SPI_Read_ID(void)
+{
+	uint32_t flash_id;
+	
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	
+	SPI_FLASH_Send_Byte(READ_JEDEC_ID);
+	
+	flash_id = SPI_FLASH_Send_Byte(DUMMY);
+	
+	flash_id <<= 8;//腾出空间
+	
+	flash_id |= SPI_FLASH_Send_Byte(DUMMY);
+
+	flash_id <<= 8;
+
+	flash_id |= SPI_FLASH_Send_Byte(DUMMY);
+
+	FLASH_SPI_CS_HIGH;
+	
+	return flash_id;
+}
+
+//FLASH写入使能
+void SPI_Write_Enable(void)
+{	
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	SPI_FLASH_Send_Byte(WRITE_ENABLE);
+	FLASH_SPI_CS_HIGH;
+}
+
+
+//擦除FLASH指定扇区
+void SPI_Erase_Sector(uint32_t addr)
+{	
+	SPI_Write_Enable();//擦除之前先调用enable
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	
+	SPI_FLASH_Send_Byte(ERASE_SECTOR);
+	
+	SPI_FLASH_Send_Byte((addr>>16)&0xff);//为了确认是一个字节，取0xff,取它的低位
+	
+	SPI_FLASH_Send_Byte((addr>>8)&0xff);
+
+  SPI_FLASH_Send_Byte(addr&0xff);
+
+	FLASH_SPI_CS_HIGH;
+	SPI_WaitForWriteEnd();
+	
+}
+//读取FLASH的内容
+void SPI_Read_Data(uint32_t addr,uint8_t *readbuff,uint32_t numByteToRead)
+{	
+	SPI_Write_Enable();
+	
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	
+	SPI_FLASH_Send_Byte(READ_DATA);
+	
+	SPI_FLASH_Send_Byte((addr>>16)&0xff);//为了确认是一个字节，取0xff,取它的低位
+	
+	SPI_FLASH_Send_Byte((addr>>8)&0xff);
+
+  SPI_FLASH_Send_Byte(addr&0xff);
+
+	while(numByteToRead--)
+	{
+		*readbuff = SPI_FLASH_Send_Byte(DUMMY);
+		readbuff++;
+	}
+	
+	FLASH_SPI_CS_HIGH;
+	SPI_WaitForWriteEnd();
+}
 
 
 
+//向Flash写入内容//最多写入256个字节，写入之前必须保证扇区是清空的（写入之前要先擦除）
+void SPI_Write_Data(uint32_t addr,uint8_t *writebuff,uint32_t numByteToWrite)
+{	
+	SPI_Write_Enable();//写入之前先调用enable
+
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	
+	SPI_FLASH_Send_Byte(WRITE_DATA);
+	
+	SPI_FLASH_Send_Byte((addr>>16)&0xff);//为了确认是一个字节，取0xff,取它的低位
+	
+	SPI_FLASH_Send_Byte((addr>>8)&0xff);
+
+  SPI_FLASH_Send_Byte(addr&0xff);
+
+	while(numByteToWrite--)
+	{
+	  SPI_FLASH_Send_Byte(*writebuff);
+		writebuff++;
+	}
+	
+	FLASH_SPI_CS_HIGH;
+	SPI_WaitForWriteEnd();
+}
 
 
+
+//等待FLASH内部时序操作完成
+//启用内部时序进行擦除是很耗时的，我们可以通过读取状态寄存器BUSY位，来知道是否擦除完成
+void SPI_WaitForWriteEnd(void)
+{
+	uint8_t status_reg = 0;
+	
+	//片选使能
+	FLASH_SPI_CS_LOW;
+	
+	SPI_FLASH_Send_Byte(READ_STATUS);
+	
+	do//先去读取状态寄存器的值，然后判断是否忙碌
+	{
+		status_reg = SPI_FLASH_Send_Byte(DUMMY);
+	}
+	while(status_reg & 0x01 == 1);//取最低位。等于1判断为忙碌，就一直循环。
+
+	FLASH_SPI_CS_HIGH;
+
+}
+
+
+/**
+  * @brief  Basic management of the timeout situation.
+  * @param  errorCode：错误代码，可以用来定位是哪个环节出错.
+  * @retval 返回0，表示SPI读取失败.
+  */
+static  uint32_t SPI_TIMEOUT_UserCallback(uint8_t errorCode)//errorCode，定位哪里出错
+{
+  /* Block communication and all processes */
+  FLASH_ERROR("SPI 等待超时!errorCode = %d",errorCode);
+  
+  return 0;
+}
+/*********************************************END OF FILE**********************/
+
+
+
+```
+
+```main.c
+/**
+  ******************************************************************************
+  * @file    main.c
+  * @author  fire
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   SPI-FLASH测试，测试信息通过USART1打印在电脑的超级终端
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */
+  
+#include "stm32f10x.h"
+#include "./led/bsp_led.h"
+#include "./usart/bsp_usart.h"
+#include "./flash/bsp_spi_flash.h"
+#include <string.h>
+
+uint8_t readBuff[4096];//定义一个缓冲区，启动文件中的默认堆区是1024个字节，所以定义成全局变量
+uint8_t writeBuff[4096];
+
+/**
+  * @brief  主函数
+  * @param  无
+  * @retval 无
+  */
+int main(void)
+{ 
+	uint32_t id;
+	uint16_t i;
+	
+  LED_GPIO_Config();
+  
+  LED_BLUE;
+  /* 串口初始化 */
+	USART_Config();
+	
+	printf("\r\n 这是一个SPI-Flash读写测试例程 \r\n");
+	
+  SPI_FLASH_Init();
+ 
+  id = SPI_Read_ID();
+		
+	printf("\r\n id = 0x%x \r\n",id);
+
+	SPI_Erase_Sector(0);
+	
+	for(i=0;i<25;i++)//注意，写入的数据不能超过256个字节
+	{
+		writeBuff[i] = i;
+	}
+	
+	SPI_Write_Data(0,writeBuff,25);//想要写入一个扇区，可能就需要多次调用了
+	
+	SPI_Read_Data(0,readBuff,4096);
+	
+	for(i=0;i<4096;i++)
+	{
+		printf("0x%x ",readBuff[i]);
+		if(i%10 == 0)//每10个数据加一个回车
+			printf("\r\n");
+	}
+	
+  while (1)
+  {      
+  }
+}
+
+///*********************************************END OF FILE**********************/
+
+```
 
 
 #### B 站 AI 视频总结
 
 如何通过读取 Fresh 的 ID 号来验证硬件连接和初始化模式是否正常。通过编写一个读取 ID 号的函数实现对 Fresh 的 SPI 通讯的驱动。在函数中,首先需要检测标志位,确保发送缓冲区为空然后向数据寄存器写入要发送的数据最后等待发送完毕的标志。此外,还介绍了发送多个字节的方法和检测标志位的方法。
 
+
+## P 61 标准程序讲解及存储小数
 
 
 
