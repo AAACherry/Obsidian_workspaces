@@ -154,7 +154,7 @@ FATXX 主要区别是文件容量大小（单个文件大小的最大空间，FA
 
 注意：不是说直接就支持这些存储介质，我们需要向 FATFS 的代码提供一些关于底层接口的函数，像 printf 重定向一样，需要我们底层自己实现的。
 
-
+##### FATFS 目录结构
 ![[../../annex/串行Flash文件系统FatFs_image_19.png|FatFs源码目录结构]]
 
 FATFS 文件系统帮我们实现了 fopen、fclose 以及这些 C 语言标准的一些函数。
@@ -173,21 +173,22 @@ FATFS 文件系统帮我们实现了 fopen、fclose 以及这些 C 语言标准�
 
 ![[../../annex/Pasted image 20231206202730.png]]
 
+###### Integer 文件
 ![[../../annex/Pasted image 20231206202829.png]]
 打开 integer，内容是为了防止编译平台不一样（C 语言中，int 型 8051 芯片是 16 位的，在 stm 32 是 32 位的，通过这种格式定义就可以方便屏蔽编译器的差异）
 
-Diskio.c 文件
+###### Diskio .c 文件
 ![[../../annex/Pasted image 20231206203422.png]]
 独立于底层介质的操作函数。移植 FATFS 文件系统的时候只需要改这个文件，然后给它提供各种接口。
 
-ff.c 核心文件
+###### ff .c 核心文件
 ![[../../annex/Pasted image 20231206203832.png]]
 ff.c 实现了文件系统和底层的逻辑转换，而逻辑底层操作又封装成 diskio.c 等
 这个文件实际上是把各种逻辑转换，转换之后得到了一个最底层的操作，就交给 diskio.c 文件里面的各种函数接口去操作。
 ![[../../annex/Pasted image 20231206204201.png]]
 其实就属于 fatfs module（中间层），跟底层的操作就通过底层操作接口来对我们的存储介质进行操作
 
-cc. 936 文件
+###### cc . 936 文件
 ![[../../annex/Pasted image 20231206204541.png]]
 其实就是简体中文的编码页，通过 unicode 转 GB 2312 。Unicode 是国际通用的（包含全球字符的编码，转成像 ASCII 码一样的编码）编码。OEM 就是代码页。936 代表简体中文的代码页。
 其实就是字符转换表。
@@ -257,7 +258,19 @@ Fatfs 文件系统的分层结构和主要文件的作用, 以及如何进行移
 ## P 64 代码讲解-FatFs 文件系统移植
 
 
+![[../../annex/Pasted image 20231206224406.png]]
 
+![[../../annex/Pasted image 20231206225048.png]]
+主要是要实现 diskio.c 文件的这几个函数
+
+把这些文件都添加到工程目录中去
+![[../../annex/Pasted image 20231206225345.png]]
+Manage project items
+![[../../annex/Pasted image 20231206225419.png]]
+添加文件
+![[../../annex/Pasted image 20231206225444.png]]
+记得添加头文件路径
+![[../../annex/Pasted image 20231206225602.png]]
 
 
 
