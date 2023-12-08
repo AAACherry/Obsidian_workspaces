@@ -1354,41 +1354,41 @@ static  uint16_t SPI_TIMEOUT_UserCallback(uint8_t errorCode)
 
 ## P 65 代码讲解-FATFS 文件系统配置
 
-![[../../annex/Pasted image 20231207204255.png]]
+![[../../annex/串行Flash文件系统FatFs_image_48.png]]
 挂载。挂载文件系统。相当于在整个工程代码中运行文件系统的代码，就可以产生系统盘了。通过挂载初始化整个文件系统，它会读取我们存储介质上的一些信息，实现创建信息结构，方便后面调用 f_open 等函数。（这个函数就是使用文件系统之前必须要调用的，且需要挂载的）
 
 ##### F_mount 函数的参数
 参数：
 FATFS 类型是很大的，所以通常自定义在全局变量里面。
 第二个是路径（存储器的路径）。路径就像是 C 盘、D 盘.... 。在 FATFS 文件系统里面是直接用数字来表示的。如果用 0 来表示的话就是 SD 卡，用 1 来表示的话就是 SPI_Flash
-![[../../annex/Pasted image 20231207204712.png]]
+![[../../annex/串行Flash文件系统FatFs_image_49.png]]
 
 定义了 FATFS* fs 后，其实是以指针形式输入到这个函数里面的。输入的时候，如果这个指针是非空的话（不是 null）f_mount 函数就会挂载文件系统。如果输入的是空指针，就会取消挂载文件系统。
 
-![[../../annex/Pasted image 20231207210520.png]]
+![[../../annex/串行Flash文件系统FatFs_image_50.png]]
 这个结构体是非常大的。因为有一个 win 数组，其实就相当于一个缓存。是非常大的，512（后面配置成 4096，更大了）
-![[../../annex/Pasted image 20231207210644.png]]
+![[../../annex/串行Flash文件系统FatFs_image_51.png]]
 
 我们知道，我们默认的启动文件配置，栈空间是 400（1024 个字节）
-![[../../annex/Pasted image 20231207210753.png]]
+![[../../annex/串行Flash文件系统FatFs_image_52.png]]
 如果把 FATFS 结构体定义到 main 函数内部的话，就变成栈空间。而栈空间是会溢出的。所以一般我们习惯直接定义为全局变量。
 每个存储设备在挂载的时候都需要一个这样的信息结构这个结构体来存储文件系统的信息。
 一个 flash 定义一个 FATFS 全局变量结构体。如果加了个 SD 卡，则需再定义一个。
 
-![[../../annex/Pasted image 20231207211613.png]]
+![[../../annex/串行Flash文件系统FatFs_image_53.png]]
 FRESULT。返回值结构体，用来查看 f_mount 的执行情况。
 
 ##### VOLUMES 改为 2
-![[../../annex/Pasted image 20231207211945.png]]
+![[../../annex/串行Flash文件系统FatFs_image_54.png]]
 默认情况下，使用存储设备 1 个。现在用了两个存储设备（SD 和 Flash）。所以就会找不到这个设备，所以会报错：FR_INVALID_DRIVE (11)，将 ffconf. H 文件中的 VOLUMES 的值改为 2 即可。
-![[../../annex/Pasted image 20231207212114.png]]
+![[../../annex/串行Flash文件系统FatFs_image_55.png]]
 
 
 
 ##### 数据溢出
-![[../../annex/Pasted image 20231207213515.png]]
+![[../../annex/串行Flash文件系统FatFs_image_56.png]]
 卡死在 f_mount 函数之后
-![[../../annex/Pasted image 20231207213540.png]]
+![[../../annex/串行Flash文件系统FatFs_image_57.png]]
 这种问题大部分都是由于数据溢出或者 while 循环死掉了。（在 mount 函数中） while 循环死掉了，或者在 it. C 出现了 hardfault error。
 
 ```
@@ -1402,19 +1402,19 @@ FRESULT。返回值结构体，用来查看 f_mount 的执行情况。
 ```
 
 
-![[../../annex/Pasted image 20231207212735.png]]
+![[../../annex/串行Flash文件系统FatFs_image_58.png]]
 主要就是 MAX_SS != MIN_SS 时，我们需要配置 GET_SECTOR_SIZE ，需要配置 4096
-![[../../annex/Pasted image 20231207212853.png]]
+![[../../annex/串行Flash文件系统FatFs_image_59.png]]
 现在配置 4096，实际上 MAX_SS 相当于是作为 fsObject（FATFS 结构体）有一个数组，相当于作为缓冲区
-![[../../annex/Pasted image 20231207212925.png]]
+![[../../annex/串行Flash文件系统FatFs_image_60.png]]
 
-![[../../annex/Pasted image 20231207213359.png]]
+![[../../annex/串行Flash文件系统FatFs_image_61.png]]
 现在要读取一个扇区为 4096 个字节的内容的话，如果这里只定义了 512 个字节，读取数据就很容易出错，数据就溢出了。（把 4096 个字节放到 512 字节的数组中溢出了）
 所以我们可以通过把 ffconf. H 文件中的 MAX_SS 配置成跟我们的扇区大小一致，就不会出现这种报错情况（挂载失败）。
 最小的 512，最大是 4096. 其实 512 个字节用在 SD 卡比较多，FLASH 中一般就配置 4096 个字节。
 
 ##### FR_NO_FILESYSTEM=13
-![[../../annex/Pasted image 20231207220827.png]]
+![[../../annex/串行Flash文件系统FatFs_image_62.png]]
 现在的问题不是卡死，res = 13
 FR_NO_FILESYSTEM（13）。这个设备上不存在文件系统
 在一个存储设备上，要是有文件系统的话，是会带有相应的文件系统里边的一些信息结构
@@ -1422,20 +1422,20 @@ FR_NO_FILESYSTEM（13）。这个设备上不存在文件系统
 格式化后在 flash 上存储一些信息结构，后面我们才能使用文件格式来创建。
 所以现在的问题是要对它进行格式化。（f_mkfs 函数）
 
-![[../../annex/Pasted image 20231207221238.png]]
+![[../../annex/串行Flash文件系统FatFs_image_63.png]]
 调用 f_mkfs 函数就是格式化了，就会把存储设备上的所有内容都删掉。（只执行一次）
 
-![[../../annex/Pasted image 20231207221754.png]]
+![[../../annex/串行Flash文件系统FatFs_image_64.png]]
 报错：声明了，但是找不到定义。
 因为这个文件系统为了裁剪大小，一般来说是默认不支持这个格式化的。
 我们要使用格式化时，需要把宏设置成 1（ffconf. H 文件中_USE_MKFS 改为 1）
-![[../../annex/Pasted image 20231207221838.png]]
-![[../../annex/Pasted image 20231207222000.png]]
+![[../../annex/串行Flash文件系统FatFs_image_65.png]]
+![[../../annex/串行Flash文件系统FatFs_image_66.png]]
 
 还是报错 FR_NO_FILESYSTEM=13
-![[../../annex/Pasted image 20231207222218.png]]
+![[../../annex/串行Flash文件系统FatFs_image_67.png]]
 测试情况
-![[../../annex/Pasted image 20231207222133.png]]
+![[../../annex/串行Flash文件系统FatFs_image_68.png]]
 说是格式化正常，但是再次复位的时候还依然告诉我们不存在这个文件系统。
 
 ```
@@ -1448,12 +1448,12 @@ SPI_FLASH 有没有使能  SPI_FLASH_WriteEnable (); （写入的时候没有的
 所以我们需要加一个 SPI_FLASH_SectorErase ，要确保它有一些 SPI_FLASH_WaitForWriteEnd
 ```
 
-![[../../annex/Pasted image 20231207223746.png]]
+![[../../annex/串行Flash文件系统FatFs_image_69.png]]
 
 
 格式化后要取消挂载再重新挂载文件系统
 flash 已经存在了格式了（存在文件系统了），所以不执行这里
-![[../../annex/Pasted image 20231207224404.png]]
+![[../../annex/串行Flash文件系统FatFs_image_70.png]]
 
 ```
 flash已经存在了格式了（存在文件系统了），所以不执行这里。我们可以把文件系统的格式取消掉
@@ -1467,7 +1467,7 @@ flash已经存在了格式了（存在文件系统了），所以不执行这里
 ```
 
 重新格式化后：
-![[../../annex/Pasted image 20231207225000.png]]
+![[../../annex/串行Flash文件系统FatFs_image_71.png]]
 第一次挂载不成功（f_mount res=13）
 然后执行 f_mkfs 格式化（f_mkfs res=0）
 然后第二次挂载，成功了（second f_mount res=0）
@@ -1477,6 +1477,1113 @@ flash已经存在了格式了（存在文件系统了），所以不执行这里
 
 
 
+![[../../annex/串行Flash文件系统FatFs_image_72.png]]
+
+![[../../annex/串行Flash文件系统FatFs_image_73.png]]
+
+![[../../annex/串行Flash文件系统FatFs_image_74.png]]
+能够输出到此处说明写入正常，有判断语句，如果写入不正常是不会读取的。
+![[../../annex/串行Flash文件系统FatFs_image_75.png]]
+Printf 看看 bw 和 br，看有多少个字节被正常写入/读取。
+写入是 21，读取是 0。说明写入是正常的，读取出现问题。
+因为现在是没有关闭这个文件，相当于光标来到文件末，我们再想读取数据，读到文件的结尾就是读取到后面的数据（空白的）。
+所以在读取之前要把光标重新放到文件的开头再去读。
+
+![[../../annex/串行Flash文件系统FatFs_image_76.png]]
+F_lseek 配置光标。
+注意，可能需要在 ffconf. H 文件中使能该宏
+![[../../annex/串行Flash文件系统FatFs_image_77.png]]
+如果_FS_MINIMIZE 配置成 3，就不使能 lseek 函数
+
+```main.c
+ /**
+  ******************************************************************************
+  * @file    main.c
+  * @author  fire
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   FATFS文件系统移植
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+#include "stm32f10x.h"
+#include "./usart/bsp_usart.h"
+#include "./led/bsp_led.h"
+#include "./flash/bsp_spi_flash.h"
+#include "ff.h"			
+
+
+FATFS fsobject;//占用空间大，定义为全局变量
+FIL fp;//测试文件系统能不能读写数据，先尝试打开一个文件。首先要打开一个文件的话，先要创建一个文件句柄
+//FIL也挺大的，定义为全局变量
+const char wData[] = "欢迎使用秉火开发板!";//定义一个常量来知道字符串的大小（使用sizeof）
+UINT bw;
+char rData[4096] = "";
+UINT br;
+
+
+/*
+ * 函数名：main
+ * 描述  ：主函数
+ * 输入  ：无
+ * 输出  ：无
+ * 提示  ：不要乱盖PC0跳帽！！
+ */
+int main(void)
+{ 	
+	FRESULT res;//FRESULT可以定义在内部
+	
+	LED_GPIO_Config();
+	LED_BLUE;
+	
+	/* 配置串口为：115200 8-N-1 */
+	USART_Config();
+	printf("\r\n 这是一个FATFS文件系统移植实验 \r\n");
+
+	//挂载文件系统--初始化
+	f_mount(&fsobject,"1:",1);//第三个参数1表示立即挂载
+	//0:表示第0个存储设备（diskio.c文件中#define SD_CARD 	0，0代表SD卡）。注意，不同版本的FATFS路径方式不同
+//f_mount(NULL);//如果第一个成员为NULL，就是取消挂载。相当于释放文件系统
+
+	//通过一个返回值FRESULT来确定f_mount函数的执行情况
+	printf("\r\nf_mount res = %d",res);//正常返回 FR_OK（0）
+	
+	if(res == FR_NO_FILESYSTEM)
+	{
+		res = f_mkfs("1:",0,0);//第二个参数FDISK是0，SFD是1。第三个参数写0：会自动分配
+		printf("\r\nf_mkfs res = %d",res);//正常返回 FR_OK（0）
+		
+		//格式化后要取消挂载再重新挂载文件系统
+	//格式化后可能想要执行一些函数,但是在格式化后必须要重新挂载
+		res = f_mount(NULL,"1:",1);//即取消挂载（NULL），再来重新挂载
+		res = f_mount(&fsobject,"1:",1);//重新挂载其实就是再执行一次就可以了
+		
+		//检查第二次挂载是否正常
+		printf("\r\nsecondf_mount res = %d",res);//正常返回 FR_OK（0）
+		
+		//flash已经存在了格式了（存在文件系统了），所以不执行这里。我们可以把文件系统的格式取消掉
+		//如何取消：现在我们是在flash里面建立文件系统，但是我们重新执行一下程序，我们的例程会破坏掉我们的文件系统，因为它是直接写入的（没有带文件系统的程序）
+		//（重新打开未写文件系统的keil文件并编译）
+		//直接烧进来会往第一个扇区擦除数据。如果擦除第一个扇区的数据，基本上这个文件系统就被破坏掉了。然后再来下载格式化（本文件），相当于重新执行一次格式化
+		
+		//也可以，如果自己想要重新格式化文件系统的话，把 f_mkfs 放到 if 语句外面，就可以每次运行的时候直接格式化了。但是要注意，每次格式化后，数据都会丢失。
+		
+	}
+	
+	res = f_open(&fp,"1:abcd.txt",FA_OPEN_ALWAYS|FA_READ|FA_WRITE);//我们打开文件的时候，输入这三个参数，它会产生一个指针填充fp这个文件句柄，有了文件句柄后才能进行read/write等操作
+	//创建一个文件，文件名为abcd，文件名还不支持中文。把所有想要给的权限都通过或语句|把这些宏或进来。
+	printf("\r\nf_open res = %d",res);//正常返回 FR_OK（0）
+
+	if(res == FR_OK)
+	{
+		res = f_write(&fp,wData,sizeof(wData),&bw);//不是说字符串不支持中文//第四个参数（如果写的数据比较长，不是一次f_write就写完的，可能是分多次写完。那么会通过第四个参数bw来告诉我们有多少个字节已经写入正常）
+		printf("\r\nbw = %d",bw);
+
+		if(res == FR_OK)
+		{
+			f_lseek(&fp,0);
+			res = f_read(&fp,rData,f_size(&fp),&br);
+		//如果按照我们的需求，我们就知道我们要读的数据大小其实就是要写进去的数据的大小。
+		//但实际上我们有了文件操作，一般不会这么去指定（sizeof(rData)）。比如如果想把整个文件读取回来，用f_size函数。利用f_size来确认文件多大
+			
+			if(res == FR_OK)
+				printf("\r\n文件内容：%s br = %d",rData,br);
+		}
+		f_close(&fp);
+	}
+	
+	
+	while(1);  
+}
+
+
+void Delay(__IO uint32_t nCount)
+{
+  for(; nCount != 0; nCount--);
+}
+/*********************************************END OF FILE**********************/
+
+```
+
+```bsp_spi_flash.c
+ /**
+  ******************************************************************************
+  * @file    bsp_xxx.c
+  * @author  STMicroelectronics
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   spi flash 底层应用函数bsp 
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */
+  
+#include "./flash/bsp_spi_flash.h"
+
+static __IO uint32_t  SPITimeout = SPIT_LONG_TIMEOUT;    
+static uint16_t SPI_TIMEOUT_UserCallback(uint8_t errorCode);
+
+/**
+  * @brief  SPI_FLASH初始化
+  * @param  无
+  * @retval 无
+  */
+void SPI_FLASH_Init(void)
+{
+  SPI_InitTypeDef  SPI_InitStructure;
+  GPIO_InitTypeDef GPIO_InitStructure;
+	
+	/* 使能SPI时钟 */
+	FLASH_SPI_APBxClock_FUN ( FLASH_SPI_CLK, ENABLE );
+	
+	/* 使能SPI引脚相关的时钟 */
+ 	FLASH_SPI_CS_APBxClock_FUN ( FLASH_SPI_CS_CLK|FLASH_SPI_SCK_CLK|
+																	FLASH_SPI_MISO_PIN|FLASH_SPI_MOSI_PIN, ENABLE );
+	
+  /* 配置SPI的 CS引脚，普通IO即可 */
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_CS_PIN;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_Init(FLASH_SPI_CS_PORT, &GPIO_InitStructure);
+	
+  /* 配置SPI的 SCK引脚*/
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_SCK_PIN;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+  GPIO_Init(FLASH_SPI_SCK_PORT, &GPIO_InitStructure);
+
+  /* 配置SPI的 MISO引脚*/
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MISO_PIN;
+  GPIO_Init(FLASH_SPI_MISO_PORT, &GPIO_InitStructure);
+
+  /* 配置SPI的 MOSI引脚*/
+  GPIO_InitStructure.GPIO_Pin = FLASH_SPI_MOSI_PIN;
+  GPIO_Init(FLASH_SPI_MOSI_PORT, &GPIO_InitStructure);
+
+  /* 停止信号 FLASH: CS引脚高电平*/
+  SPI_FLASH_CS_HIGH();
+
+  /* SPI 模式配置 */
+  // FLASH芯片 支持SPI模式0及模式3，据此设置CPOL CPHA
+  SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
+  SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
+  SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
+  SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
+  SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
+  SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
+  SPI_InitStructure.SPI_CRCPolynomial = 7;
+  SPI_Init(FLASH_SPIx , &SPI_InitStructure);
+
+  /* 使能 SPI  */
+  SPI_Cmd(FLASH_SPIx , ENABLE);
+	
+}
+ /**
+  * @brief  擦除FLASH扇区
+  * @param  SectorAddr：要擦除的扇区地址
+  * @retval 无
+  */
+void SPI_FLASH_SectorErase(u32 SectorAddr)
+{
+  /* 发送FLASH写使能命令 */
+  SPI_FLASH_WriteEnable();
+  SPI_FLASH_WaitForWriteEnd();
+  /* 擦除扇区 */
+  /* 选择FLASH: CS低电平 */
+  SPI_FLASH_CS_LOW();
+  /* 发送扇区擦除指令*/
+  SPI_FLASH_SendByte(W25X_SectorErase);
+  /*发送擦除扇区地址的高位*/
+  SPI_FLASH_SendByte((SectorAddr & 0xFF0000) >> 16);
+  /* 发送擦除扇区地址的中位 */
+  SPI_FLASH_SendByte((SectorAddr & 0xFF00) >> 8);
+  /* 发送擦除扇区地址的低位 */
+  SPI_FLASH_SendByte(SectorAddr & 0xFF);
+  /* 停止信号 FLASH: CS 高电平 */
+  SPI_FLASH_CS_HIGH();
+  /* 等待擦除完毕*/
+  SPI_FLASH_WaitForWriteEnd();
+}
+
+ /**
+  * @brief  擦除FLASH扇区，整片擦除
+  * @param  无
+  * @retval 无
+  */
+void SPI_FLASH_BulkErase(void)
+{
+  /* 发送FLASH写使能命令 */
+  SPI_FLASH_WriteEnable();
+
+  /* 整块 Erase */
+  /* 选择FLASH: CS低电平 */
+  SPI_FLASH_CS_LOW();
+  /* 发送整块擦除指令*/
+  SPI_FLASH_SendByte(W25X_ChipErase);
+  /* 停止信号 FLASH: CS 高电平 */
+  SPI_FLASH_CS_HIGH();
+
+  /* 等待擦除完毕*/
+  SPI_FLASH_WaitForWriteEnd();
+}
+
+ /**
+  * @brief  对FLASH按页写入数据，调用本函数写入数据前需要先擦除扇区
+  * @param	pBuffer，要写入数据的指针
+  * @param WriteAddr，写入地址
+  * @param  NumByteToWrite，写入数据长度，必须小于等于SPI_FLASH_PerWritePageSize
+  * @retval 无
+  */
+void SPI_FLASH_PageWrite(u8* pBuffer, u32 WriteAddr, u16 NumByteToWrite)
+{
+  /* 发送FLASH写使能命令 */
+  SPI_FLASH_WriteEnable();
+
+  /* 选择FLASH: CS低电平 */
+  SPI_FLASH_CS_LOW();
+  /* 写页写指令*/
+  SPI_FLASH_SendByte(W25X_PageProgram);
+  /*发送写地址的高位*/
+  SPI_FLASH_SendByte((WriteAddr & 0xFF0000) >> 16);
+  /*发送写地址的中位*/
+  SPI_FLASH_SendByte((WriteAddr & 0xFF00) >> 8);
+  /*发送写地址的低位*/
+  SPI_FLASH_SendByte(WriteAddr & 0xFF);
+
+  if(NumByteToWrite > SPI_FLASH_PerWritePageSize)
+  {
+     NumByteToWrite = SPI_FLASH_PerWritePageSize;
+     FLASH_ERROR("SPI_FLASH_PageWrite too large!"); 
+  }
+
+  /* 写入数据*/
+  while (NumByteToWrite--)
+  {
+    /* 发送当前要写入的字节数据 */
+    SPI_FLASH_SendByte(*pBuffer);
+    /* 指向下一字节数据 */
+    pBuffer++;
+  }
+
+  /* 停止信号 FLASH: CS 高电平 */
+  SPI_FLASH_CS_HIGH();
+
+  /* 等待写入完毕*/
+  SPI_FLASH_WaitForWriteEnd();
+}
+
+ /**
+  * @brief  对FLASH写入数据，调用本函数写入数据前需要先擦除扇区
+  * @param	pBuffer，要写入数据的指针
+  * @param  WriteAddr，写入地址
+  * @param  NumByteToWrite，写入数据长度
+  * @retval 无
+  */
+void SPI_FLASH_BufferWrite(u8* pBuffer, u32 WriteAddr, u16 NumByteToWrite)
+{
+  u8 NumOfPage = 0, NumOfSingle = 0, Addr = 0, count = 0, temp = 0;
+	
+	/*mod运算求余，若writeAddr是SPI_FLASH_PageSize整数倍，运算结果Addr值为0*/
+  Addr = WriteAddr % SPI_FLASH_PageSize;
+	
+	/*差count个数据值，刚好可以对齐到页地址*/
+  count = SPI_FLASH_PageSize - Addr;
+	/*计算出要写多少整数页*/
+  NumOfPage =  NumByteToWrite / SPI_FLASH_PageSize;
+	/*mod运算求余，计算出剩余不满一页的字节数*/
+  NumOfSingle = NumByteToWrite % SPI_FLASH_PageSize;
+	
+	/* Addr=0,则WriteAddr 刚好按页对齐 aligned  */
+  if (Addr == 0)
+  {
+		/* NumByteToWrite < SPI_FLASH_PageSize */
+    if (NumOfPage == 0) 
+    {
+      SPI_FLASH_PageWrite(pBuffer, WriteAddr, NumByteToWrite);
+    }
+    else /* NumByteToWrite > SPI_FLASH_PageSize */
+    { 
+			/*先把整数页都写了*/
+      while (NumOfPage--)
+      {
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, SPI_FLASH_PageSize);
+        WriteAddr +=  SPI_FLASH_PageSize;
+        pBuffer += SPI_FLASH_PageSize;
+      }
+			/*若有多余的不满一页的数据，把它写完*/
+      SPI_FLASH_PageWrite(pBuffer, WriteAddr, NumOfSingle);
+    }
+  }
+	/* 若地址与 SPI_FLASH_PageSize 不对齐  */
+  else 
+  {
+		/* NumByteToWrite < SPI_FLASH_PageSize */
+    if (NumOfPage == 0)
+    {
+			/*当前页剩余的count个位置比NumOfSingle小，一页写不完*/
+      if (NumOfSingle > count) 
+      {
+        temp = NumOfSingle - count;
+				/*先写满当前页*/
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, count);
+				
+        WriteAddr +=  count;
+        pBuffer += count;
+				/*再写剩余的数据*/
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, temp);
+      }
+      else /*当前页剩余的count个位置能写完NumOfSingle个数据*/
+      {
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, NumByteToWrite);
+      }
+    }
+    else /* NumByteToWrite > SPI_FLASH_PageSize */
+    {
+			/*地址不对齐多出的count分开处理，不加入这个运算*/
+      NumByteToWrite -= count;
+      NumOfPage =  NumByteToWrite / SPI_FLASH_PageSize;
+      NumOfSingle = NumByteToWrite % SPI_FLASH_PageSize;
+			
+			/* 先写完count个数据，为的是让下一次要写的地址对齐 */
+      SPI_FLASH_PageWrite(pBuffer, WriteAddr, count);
+			
+			/* 接下来就重复地址对齐的情况 */
+      WriteAddr +=  count;
+      pBuffer += count;
+			/*把整数页都写了*/
+      while (NumOfPage--)
+      {
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, SPI_FLASH_PageSize);
+        WriteAddr +=  SPI_FLASH_PageSize;
+        pBuffer += SPI_FLASH_PageSize;
+      }
+			/*若有多余的不满一页的数据，把它写完*/
+      if (NumOfSingle != 0)
+      {
+        SPI_FLASH_PageWrite(pBuffer, WriteAddr, NumOfSingle);
+      }
+    }
+  }
+}
+
+ /**
+  * @brief  读取FLASH数据
+  * @param 	pBuffer，存储读出数据的指针
+  * @param   ReadAddr，读取地址
+  * @param   NumByteToRead，读取数据长度
+  * @retval 无
+  */
+void SPI_FLASH_BufferRead(u8* pBuffer, u32 ReadAddr, u16 NumByteToRead)
+{
+  /* 选择FLASH: CS低电平 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送 读 指令 */
+  SPI_FLASH_SendByte(W25X_ReadData);
+
+  /* 发送 读 地址高位 */
+  SPI_FLASH_SendByte((ReadAddr & 0xFF0000) >> 16);
+  /* 发送 读 地址中位 */
+  SPI_FLASH_SendByte((ReadAddr& 0xFF00) >> 8);
+  /* 发送 读 地址低位 */
+  SPI_FLASH_SendByte(ReadAddr & 0xFF);
+	
+	/* 读取数据 */
+  while (NumByteToRead--) /* while there is data to be read */
+  {
+    /* 读取一个字节*/
+    *pBuffer = SPI_FLASH_SendByte(Dummy_Byte);
+    /* 指向下一个字节缓冲区 */
+    pBuffer++;
+  }
+
+  /* 停止信号 FLASH: CS 高电平 */
+  SPI_FLASH_CS_HIGH();
+}
+
+ /**
+  * @brief  读取FLASH ID
+  * @param 	无
+  * @retval FLASH ID
+  */
+u32 SPI_FLASH_ReadID(void)
+{
+  u32 Temp = 0, Temp0 = 0, Temp1 = 0, Temp2 = 0;
+
+  /* 开始通讯：CS低电平 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送JEDEC指令，读取ID */
+  SPI_FLASH_SendByte(W25X_JedecDeviceID);
+
+  /* 读取一个字节数据 */
+  Temp0 = SPI_FLASH_SendByte(Dummy_Byte);
+
+  /* 读取一个字节数据 */
+  Temp1 = SPI_FLASH_SendByte(Dummy_Byte);
+
+  /* 读取一个字节数据 */
+  Temp2 = SPI_FLASH_SendByte(Dummy_Byte);
+
+ /* 停止通讯：CS高电平 */
+  SPI_FLASH_CS_HIGH();
+
+  /*把数据组合起来，作为函数的返回值*/
+	Temp = (Temp0 << 16) | (Temp1 << 8) | Temp2;
+
+  return Temp;
+}
+ /**
+  * @brief  读取FLASH Device ID
+  * @param 	无
+  * @retval FLASH Device ID
+  */
+u32 SPI_FLASH_ReadDeviceID(void)
+{
+  u32 Temp = 0;
+
+  /* Select the FLASH: Chip Select low */
+  SPI_FLASH_CS_LOW();
+
+  /* Send "RDID " instruction */
+  SPI_FLASH_SendByte(W25X_DeviceID);
+  SPI_FLASH_SendByte(Dummy_Byte);
+  SPI_FLASH_SendByte(Dummy_Byte);
+  SPI_FLASH_SendByte(Dummy_Byte);
+  
+  /* Read a byte from the FLASH */
+  Temp = SPI_FLASH_SendByte(Dummy_Byte);
+
+  /* Deselect the FLASH: Chip Select high */
+  SPI_FLASH_CS_HIGH();
+
+  return Temp;
+}
+/*******************************************************************************
+* Function Name  : SPI_FLASH_StartReadSequence
+* Description    : Initiates a read data byte (READ) sequence from the Flash.
+*                  This is done by driving the /CS line low to select the device,
+*                  then the READ instruction is transmitted followed by 3 bytes
+*                  address. This function exit and keep the /CS line low, so the
+*                  Flash still being selected. With this technique the whole
+*                  content of the Flash is read with a single READ instruction.
+* Input          : - ReadAddr : FLASH's internal address to read from.
+* Output         : None
+* Return         : None
+*******************************************************************************/
+void SPI_FLASH_StartReadSequence(u32 ReadAddr)
+{
+  /* Select the FLASH: Chip Select low */
+  SPI_FLASH_CS_LOW();
+
+  /* Send "Read from Memory " instruction */
+  SPI_FLASH_SendByte(W25X_ReadData);
+
+  /* Send the 24-bit address of the address to read from -----------------------*/
+  /* Send ReadAddr high nibble address byte */
+  SPI_FLASH_SendByte((ReadAddr & 0xFF0000) >> 16);
+  /* Send ReadAddr medium nibble address byte */
+  SPI_FLASH_SendByte((ReadAddr& 0xFF00) >> 8);
+  /* Send ReadAddr low nibble address byte */
+  SPI_FLASH_SendByte(ReadAddr & 0xFF);
+}
+
+
+ /**
+  * @brief  使用SPI读取一个字节的数据
+  * @param  无
+  * @retval 返回接收到的数据
+  */
+u8 SPI_FLASH_ReadByte(void)
+{
+  return (SPI_FLASH_SendByte(Dummy_Byte));
+}
+
+ /**
+  * @brief  使用SPI发送一个字节的数据
+  * @param  byte：要发送的数据
+  * @retval 返回接收到的数据
+  */
+u8 SPI_FLASH_SendByte(u8 byte)
+{
+	 SPITimeout = SPIT_FLAG_TIMEOUT;
+  /* 等待发送缓冲区为空，TXE事件 */
+  while (SPI_I2S_GetFlagStatus(FLASH_SPIx , SPI_I2S_FLAG_TXE) == RESET)
+	{
+    if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(0);
+   }
+
+  /* 写入数据寄存器，把要写入的数据写入发送缓冲区 */
+  SPI_I2S_SendData(FLASH_SPIx , byte);
+
+	SPITimeout = SPIT_FLAG_TIMEOUT;
+  /* 等待接收缓冲区非空，RXNE事件 */
+  while (SPI_I2S_GetFlagStatus(FLASH_SPIx , SPI_I2S_FLAG_RXNE) == RESET)
+  {
+    if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(1);
+   }
+
+  /* 读取数据寄存器，获取接收缓冲区数据 */
+  return SPI_I2S_ReceiveData(FLASH_SPIx );
+}
+
+ /**
+  * @brief  使用SPI发送两个字节的数据
+  * @param  byte：要发送的数据
+  * @retval 返回接收到的数据
+  */
+u16 SPI_FLASH_SendHalfWord(u16 HalfWord)
+{
+	  SPITimeout = SPIT_FLAG_TIMEOUT;
+  /* 等待发送缓冲区为空，TXE事件 */
+  while (SPI_I2S_GetFlagStatus(FLASH_SPIx , SPI_I2S_FLAG_TXE) == RESET)
+	{
+    if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(2);
+   }
+	
+  /* 写入数据寄存器，把要写入的数据写入发送缓冲区 */
+  SPI_I2S_SendData(FLASH_SPIx , HalfWord);
+
+	 SPITimeout = SPIT_FLAG_TIMEOUT;
+  /* 等待接收缓冲区非空，RXNE事件 */
+  while (SPI_I2S_GetFlagStatus(FLASH_SPIx , SPI_I2S_FLAG_RXNE) == RESET)
+	 {
+    if((SPITimeout--) == 0) return SPI_TIMEOUT_UserCallback(3);
+   }
+  /* 读取数据寄存器，获取接收缓冲区数据 */
+  return SPI_I2S_ReceiveData(FLASH_SPIx );
+}
+
+ /**
+  * @brief  向FLASH发送 写使能 命令
+  * @param  none
+  * @retval none
+  */
+void SPI_FLASH_WriteEnable(void)
+{
+  /* 通讯开始：CS低 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送写使能命令*/
+  SPI_FLASH_SendByte(W25X_WriteEnable);
+
+  /*通讯结束：CS高 */
+  SPI_FLASH_CS_HIGH();
+}
+
+/* WIP(busy)标志，FLASH内部正在写入 */
+#define WIP_Flag                  0x01
+
+ /**
+  * @brief  等待WIP(BUSY)标志被置0，即等待到FLASH内部数据写入完毕
+  * @param  none
+  * @retval none
+  */
+void SPI_FLASH_WaitForWriteEnd(void)
+{
+  u8 FLASH_Status = 0;
+
+  /* 选择 FLASH: CS 低 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送 读状态寄存器 命令 */
+  SPI_FLASH_SendByte(W25X_ReadStatusReg);
+
+  /* 若FLASH忙碌，则等待 */
+  do
+  {
+		/* 读取FLASH芯片的状态寄存器 */
+    FLASH_Status = SPI_FLASH_SendByte(Dummy_Byte);	 
+  }
+  while ((FLASH_Status & WIP_Flag) == SET);  /* 正在写入标志 */
+
+  /* 停止信号  FLASH: CS 高 */
+  SPI_FLASH_CS_HIGH();
+}
+
+
+//进入掉电模式
+void SPI_Flash_PowerDown(void)   
+{ 
+  /* 通讯开始：CS低 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送 掉电 命令 */
+  SPI_FLASH_SendByte(W25X_PowerDown);
+
+  /*通讯结束：CS高 */
+  SPI_FLASH_CS_HIGH();
+}   
+
+//唤醒
+void SPI_Flash_WAKEUP(void)   
+{
+  /*选择 FLASH: CS 低 */
+  SPI_FLASH_CS_LOW();
+
+  /* 发送 上电 命令 */
+  SPI_FLASH_SendByte(W25X_ReleasePowerDown);
+
+   /* 停止信号 FLASH: CS 高 */
+  SPI_FLASH_CS_HIGH();
+}   
+   
+
+/**
+  * @brief  等待超时回调函数
+  * @param  None.
+  * @retval None.
+  */
+static  uint16_t SPI_TIMEOUT_UserCallback(uint8_t errorCode)
+{
+  /* 等待超时后的处理,输出错误信息 */
+  FLASH_ERROR("SPI 等待超时!errorCode = %d",errorCode);
+  return 0;
+}
+   
+/*********************************************END OF FILE**********************/
+
+```
+
+```diskio.c
+/*-----------------------------------------------------------------------*/
+/* Low level disk I/O module skeleton for FatFs     (C)ChaN, 2014        */
+/*-----------------------------------------------------------------------*/
+/* If a working storage control module is available, it should be        */
+/* attached to the FatFs via a glue function rather than modifying it.   */
+/* This is an example of glue functions to attach various exsisting      */
+/* storage control modules to the FatFs module with a defined API.       */
+/*-----------------------------------------------------------------------*/
+
+#include "diskio.h"		/* FatFs lower layer API */
+#include "./flash/bsp_spi_flash.h"
+//#include "usbdisk.h"	/* Example: Header file of existing USB MSD control module */
+//#include "atadrive.h"	/* Example: Header file of existing ATA harddisk control module */
+//#include "sdcard.h"		/* Example: Header file of existing MMC/SDC contorl module */
+
+/* Definitions of physical drive number for each drive */
+//#define ATA		0	/* Example: Map ATA harddisk to physical drive 0 */
+//#define MMC		1	/* Example: Map MMC/SD card to physical drive 1 */
+//#define USB		2	/* Example: Map USB MSD to physical drive 2 */
+
+#define SD_CARD 	0
+#define SPI_FLASH 1
+
+
+/*-----------------------------------------------------------------------*/
+/* Get Drive Status                                                      */
+/*-----------------------------------------------------------------------*/
+
+DSTATUS disk_status (
+	BYTE pdrv		/* Physical drive nmuber to identify the drive */
+)
+{
+	DSTATUS stat;
+//	int result;//没用到
+
+	switch (pdrv) {
+	case SD_CARD :
+//		result = ATA_disk_status();
+
+		// translate the reslut code here
+
+		return stat;
+
+	case SPI_FLASH :
+		
+		if (SPI_FLASH_ReadID() == sFLASH_ID)
+		{
+			//状态正常
+			stat = 0;//为什么这么写，不写return 0;
+			//因为加一个写保护(0000 0100)检测，可以再加stat |=STA_PROTECT。
+			//为什么加|=呢，因为可能不仅是不存在，可能进行了保护。
+			//最后再来返回stat，上层的ff.c就可以检测到好几个标志
+		}
+		else
+		{
+			//状态不正常
+			stat = STA_NOINIT;
+		}
+		
+//		//写保护检测
+//		
+//		stat |= STA_PROTECT;//用|= 。注意：没有写检测protect的函数，此处只是简单的示范一下
+		
+		return stat;
+
+	}
+	return STA_NOINIT;
+}
+
+
+
+/*-----------------------------------------------------------------------*/
+/* Inidialize a Drive                                                    */
+/*-----------------------------------------------------------------------*/
+
+DSTATUS disk_initialize (
+	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+)
+{
+	DSTATUS stat;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+//		result = ATA_disk_initialize();
+
+		// translate the reslut code here
+
+		return stat;
+
+	case SPI_FLASH :
+		
+		SPI_FLASH_Init();
+//		result = MMC_disk_initialize();
+	
+	return disk_status(SPI_FLASH);
+	
+//	return stat;//不需要return stat了。因为	return disk_status(SPI_FLASH)中已经有了
+	}
+	return STA_NOINIT;
+}
+
+
+
+/*-----------------------------------------------------------------------*/
+/* Read Sector(s)                                                        */
+/*-----------------------------------------------------------------------*/
+
+DRESULT disk_read (
+	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
+	BYTE *buff,		/* Data buffer to store read data */
+	DWORD sector,	/* Sector address in LBA */
+	UINT count		/* Number of sectors to read */
+)
+{
+	DRESULT res;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+		// translate the arguments here
+
+//		result = ATA_disk_read(buff, sector, count);
+
+		// translate the reslut code here
+
+		return res;
+
+	case SPI_FLASH ://SPI_FLASH -- pdrv
+	
+		SPI_FLASH_BufferRead(buff,sector*4096,count*4096);//void 没有返回值,//默认返回都是正常的
+	//第二个参数要根据扇区号算出地址，*4096（每个扇区4096个字节）
+	//为什么要输出扇区号。文件系统上层其实都是通过最小操作单位都是扇区来操作，而不是字节
+		res = RES_OK;//默认返回都是正常的
+	
+		return res;
+	}
+
+	return RES_PARERR;
+}
+
+
+
+/*-----------------------------------------------------------------------*/
+/* Write Sector(s)                                                       */
+/*-----------------------------------------------------------------------*/
+
+#if _USE_WRITE
+DRESULT disk_write (
+	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
+	const BYTE *buff,	/* Data to be written */
+	DWORD sector,		/* Sector address in LBA */
+	UINT count			/* Number of sectors to write */
+)
+{
+	DRESULT res;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+		// translate the arguments here
+
+//		result = ATA_disk_write(buff, sector, count);
+
+		// translate the reslut code here
+
+		return res;
+
+	case SPI_FLASH :
+		
+	//一定要先擦除再写入
+		SPI_FLASH_SectorErase(sector*4096);//参数：要擦除的扇区的地址
+	
+		SPI_FLASH_BufferWrite((u8 *)buff,sector*4096,count*4096);
+	//此处buff报错:指针类型不一致。要求输入的指针是u8，前面还是个const常量。需要把它转换过来，这里直接进行了强转
+	
+		res = RES_OK;//默认返回都是正常的//严谨来说应该加入读取SPI_FLASH的存储器状态/写保护状态来返回一些详细信息的
+	
+		return res;
+	
+	}
+
+	return RES_PARERR;
+}
+#endif
+
+
+/*-----------------------------------------------------------------------*/
+/* Miscellaneous Functions                                               */
+/*-----------------------------------------------------------------------*/
+
+#if _USE_IOCTL
+DRESULT disk_ioctl (
+	BYTE pdrv,		/* Physical drive nmuber (0..) */
+	BYTE cmd,		/* Control code */
+	void *buff		/* Buffer to send/receive control data */
+)
+{
+	DRESULT res;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+
+		// Process of the command for the ATA drive
+
+		return res;
+
+	case SPI_FLASH :
+
+	switch(cmd)
+	{
+		//返回扇区个数
+		case GET_SECTOR_COUNT:
+					*(DWORD*)buff = 2048;//128*16=2048个扇区//报错error：空指针，空指针是没法进行操作的。所以我们需要给它一个类型
+		break;
+	
+		//返回每个扇区的大小
+		case GET_SECTOR_SIZE:
+					*(WORD*)buff = 4096;
+		break;
+	
+		//返回擦除扇区的最小个数(单位为扇区)。每次擦除4096个字节（一个扇区）
+		case GET_BLOCK_SIZE:
+					*(WORD*)buff = 1;//注意，不要写成了4096
+		break;
+	
+	}
+		// Process of the command for the MMC/SD card
+
+		res = RES_OK;
+		return res;
+	}
+
+	return RES_PARERR;
+}
+#endif
+
+//返回时间//通过DWORD32个数据位返回一个时间
+DWORD get_fattime(void)
+{
+	return 0;
+}
+
+
+
+```
+
+```stm32f10x_it.c
+/**
+  ******************************************************************************
+  * @file    Project/STM32F10x_StdPeriph_Template/stm32f10x_it.c 
+  * @author  MCD Application Team
+  * @version V3.5.0
+  * @date    08-April-2011
+  * @brief   Main Interrupt Service Routines.
+  *          This file provides template for all exceptions handler and 
+  *          peripherals interrupt service routine.
+  ******************************************************************************
+  * @attention
+  *
+  * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
+  * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
+  * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
+  * DIRECT, INDIRECT OR CONSEQUENTI
+  
+  AL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
+  * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
+  * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
+  *
+  * <h2><center>&copy; COPYRIGHT 2011 STMicroelectronics</center></h2>
+  ******************************************************************************
+  */
+
+/* Includes ------------------------------------------------------------------*/
+#include "stm32f10x_it.h"
+#include "./usart/bsp_usart.h"
+
+
+/** @addtogroup STM32F10x_StdPeriph_Template
+  * @{
+  */
+
+/* Private typedef -----------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
+
+/******************************************************************************/
+/*            Cortex-M3 Processor Exceptions Handlers                         */
+/******************************************************************************/
+
+/**
+  * @brief  This function handles NMI exception.
+  * @param  None
+  * @retval None
+  */
+void NMI_Handler(void)
+{
+}
+
+/**
+  * @brief  This function handles Hard Fault exception.
+  * @param  None
+  * @retval None
+  */
+void HardFault_Handler(void)
+{
+	printf("\r\n hardfault error");
+  /* Go to infinite loop when Hard Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Memory Manage exception.
+  * @param  None
+  * @retval None
+  */
+void MemManage_Handler(void)
+{
+  /* Go to infinite loop when Memory Manage exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Bus Fault exception.
+  * @param  None
+  * @retval None
+  */
+void BusFault_Handler(void)
+{
+  /* Go to infinite loop when Bus Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles Usage Fault exception.
+  * @param  None
+  * @retval None
+  */
+void UsageFault_Handler(void)
+{
+  /* Go to infinite loop when Usage Fault exception occurs */
+  while (1)
+  {
+  }
+}
+
+/**
+  * @brief  This function handles SVCall exception.
+  * @param  None
+  * @retval None
+  */
+void SVC_Handler(void)
+{
+}
+
+/**
+  * @brief  This function handles Debug Monitor exception.
+  * @param  None
+  * @retval None
+  */
+void DebugMon_Handler(void)
+{
+}
+
+/**
+  * @brief  This function handles PendSVC exception.
+  * @param  None
+  * @retval None
+  */
+void PendSV_Handler(void)
+{
+}
+
+/**
+  * @brief  This function handles SysTick Handler.
+  * @param  None
+  * @retval None
+  */
+void SysTick_Handler(void)
+{
+}
+
+/******************************************************************************/
+/*                 STM32F10x Peripherals Interrupt Handlers                   */
+/*  Add here the Interrupt Handler for the used peripheral(s) (PPP), for the  */
+/*  available peripheral interrupt handler's name please refer to the startup */
+/*  file (startup_stm32f10x_xx.s).                                            */
+/******************************************************************************/
+
+/**
+  * @brief  This function handles PPP interrupt request.
+  * @param  None
+  * @retval None
+  */
+/*void PPP_IRQHandler(void)
+{
+}*/
+
+/**
+  * @}
+  */ 
+
+
+/******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/
+
+```
+
+
+
+#### B 站 AI 视频总结
+
+在移植文件系统时需要对配置文件进行设置包括挂载文件系统、初始化函数等。通过演示错误和配置不同的参数,展示了挂载文件系统和使用相关函数的方法。同时,还介绍了如何添加头文件和使用 f mt 函数来挂载文件系统以及如何释放空间和取消挂载文件系统。最后详细讲解了 f atfs 文件系统的类型和信息结构
+
+
+
+## P 66 代码讲解--中文支持及 FLASH 空间分配
 
 
 
@@ -1497,13 +2604,27 @@ flash已经存在了格式了（存在文件系统了），所以不执行这里
 
 #### B 站 AI 视频总结
 
-在移植文件系统时需要对配置文件进行设置包括挂载文件系统、初始化函数等。通过演示错误和配置不同的参数,展示了挂载文件系统和使用相关函数的方法。同时,还介绍了如何添加头文件和使用 f mt 函数来挂载文件系统以及如何释放空间和取消挂载文件系统。最后详细讲解了 f atfs 文件系统的类型和信息结构
+如何支持中文文件名和长文件名, 以及如何偏移文件系统空间。通过修改配置和加入偏移, 实现了对文件系统的读写操作。同时, 介绍了 fresh 芯片上预留的空间用于存储字库文件和参数, 这些文件数据不使用文件系统存储而是以非文件系统格式存储。还提供了使用 usb 线连接电脑查看 fresh 上的文件的演示。
 
+- 如何支持中文文件名和长文件名, 以及如何偏移文件系统空间。
+00:01 通过测试修改配置，文件系统已正常运行
+01:06 中文文件名不支持，需要偏移空间
+05:38 预留空间存储字库文件等，不希望占用 STM 32 空间
 
+- 使用非文件系统格式存储数据的方法以及如何对文件系统进行偏移。
+08:06 数据存储在 flash 上，不使用文件系统格式
+10:18 前两兆字节预留给非文件系统，后面六兆字节用于文件系统
+14:28 标准程序里边的差异和中文支持
 
+- 如何通过下载编译程序和下载数据将 Fresh 空间恢复到正常状态。
+16:13 下载程序并连接 USB 设备，电脑会显示 U 盘
+17:46 可以通过这种形式查看 U 盘里的文件
+22:48 添加编码页和修改配置文件，支持中文和长文件名
 
-
-
+- 文件系统的主要内容包括长文件名、中文支持和扇区偏移等, 并演示了文件系统的移植和应用。
+24:16 介绍如何下载并查看文件系统
+25:36 讲解文件系统的主要内容，包括长文件名和中文支持
+27:35 演示如何移植文件系统到开发板，并进行文件写入测试
 
 
 
