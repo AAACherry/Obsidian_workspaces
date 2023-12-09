@@ -2585,18 +2585,367 @@ void SysTick_Handler(void)
 
 ## P 66 代码讲解--中文支持及 FLASH 空间分配
 
+不是整片 FLASH 都格式化成我们的文件系统。（直接以文件系统格式存储在 FLASH 上。前 2 M ）
+只是把后面 6 M 字节用来做文件系统而已。
+![[../../annex/串行Flash文件系统FatFs_image_78.png]]
+偏移扇区，USB 程序模拟 U 盘，它这个扇区就是从后面 6 M 字节开始读的。如果不偏移，U 盘读取到的空间和文件系统空间是不一致的。
+
+
+编译 cc936. C 文件提示不需要使用这个文件就删掉
+要在 ffconf. H 文件中的_CODE_PAGE 932 改成 936.
+USE_LFN 0 改成非 0 值。（如果使用 1 的话，会把长文件名使用到的空间，因为长文件名要申请比较大的空间。所以会要求说可以把长文件名存储在 BSS 段（相当于全局变量）。如果是存储在 STAC 区的话，相当于是在局部变量中。还可以选择的 HEAP，即堆区。相当于使用 malloc 函数的时候申请的空间）一般情况下配置成 1，配置成 2 栈空间的话很容易就溢出了。
+MAX_LFN 255, 长文件名支持的最长的长度
+![[../../annex/串行Flash文件系统FatFs_image_79.png]]
+
+USE_STRFUNC 1 配置成 0 的话，那么这些函数就不能用了
+![[../../annex/串行Flash文件系统FatFs_image_80.png]]
+
+```diskio.c
+/*-----------------------------------------------------------------------*/
+/* Low level disk I/O module skeleton for FatFs     (C)ChaN, 2014        */
+/*-----------------------------------------------------------------------*/
+/* If a working storage control module is available, it should be        */
+/* attached to the FatFs via a glue function rather than modifying it.   */
+/* This is an example of glue functions to attach various exsisting      */
+/* storage control modules to the FatFs module with a defined API.       */
+/*-----------------------------------------------------------------------*/
+
+#include "diskio.h"		/* FatFs lower layer API */
+#include "./flash/bsp_spi_flash.h"
+//#include "usbdisk.h"	/* Example: Header file of existing USB MSD control module */
+//#include "atadrive.h"	/* Example: Header file of existing ATA harddisk control module */
+//#include "sdcard.h"		/* Example: Header file of existing MMC/SDC contorl module */
+
+/* Definitions of physical drive number for each drive */
+#define ATA		0	/* Example: Map ATA harddisk to physical drive 0 */
+#define MMC		1	/* Example: Map MMC/SD card to physical drive 1 */
+#define USB		2	/* Example: Map USB MSD to physical drive 2 */
+
+
+#define SD_CARD   0
+#define SPI_FLASH 1
+
+
+/*-----------------------------------------------------------------------*/
+/* Get Drive Status                                                      */
+/*-----------------------------------------------------------------------*/
+
+DSTATUS disk_status (
+	BYTE pdrv		/* Physical drive nmuber to identify the drive */
+)
+{
+	DSTATUS stat;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+//		result = ATA_disk_status();
+
+		// translate the reslut code here
+
+		return stat;
+
+	case SPI_FLASH :		
+	
+		if (SPI_FLASH_ReadID() == sFLASH_ID)
+		{
+			//状态正常
+			stat = 0;
+		}
+		else
+		{
+			//状态不正常
+			stat = STA_NOINIT;		
+		}
+
+		return stat;
+	}
+	return STA_NOINIT;
+}
 
 
 
+/*-----------------------------------------------------------------------*/
+/* Inidialize a Drive                                                    */
+/*-----------------------------------------------------------------------*/
+
+DSTATUS disk_initialize (
+	BYTE pdrv				/* Physical drive nmuber to identify the drive */
+)
+{
+	DSTATUS stat;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+//		result = ATA_disk_initialize();
+
+		// translate the reslut code here
+
+		return stat;
+
+	case SPI_FLASH :
+		
+		SPI_FLASH_Init();
+		SPI_Flash_WAKEUP();
+//		result = MMC_disk_initialize();
+	
+		return  disk_status(SPI_FLASH);
+
+	}
+	return STA_NOINIT;
+}
 
 
 
+/*-----------------------------------------------------------------------*/
+/* Read Sector(s)                                                        */
+/*-----------------------------------------------------------------------*/
+
+DRESULT disk_read (
+	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
+	BYTE *buff,		/* Data buffer to store read data */
+	DWORD sector,	/* Sector address in LBA */
+	UINT count		/* Number of sectors to read */
+)
+{
+	DRESULT res;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+		// translate the arguments here
+
+//		result = ATA_disk_read(buff, sector, count);
+
+		// translate the reslut code here
+
+		return res;
+
+	case SPI_FLASH :
+		/* 扇区偏移2MB，外部Flash文件系统空间放在SPI Flash后面6MB空间 */
+		sector += 512;
+		SPI_FLASH_BufferRead(buff,sector*4096,count*4096);
+
+		res = RES_OK;
+	
+		return res;
+
+	}
+
+	return RES_PARERR;
+}
 
 
 
+/*-----------------------------------------------------------------------*/
+/* Write Sector(s)                                                       */
+/*-----------------------------------------------------------------------*/
+
+#if _USE_WRITE
+DRESULT disk_write (
+	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
+	const BYTE *buff,	/* Data to be written */
+	DWORD sector,		/* Sector address in LBA */
+	UINT count			/* Number of sectors to write */
+)
+{
+	DRESULT res;
+//	int result;
+
+	switch (pdrv) {
+	case SD_CARD :
+		// translate the arguments here
+
+//		result = ATA_disk_write(buff, sector, count);
+
+		// translate the reslut code here
+
+		return res;
+
+	case SPI_FLASH :
+		/* 扇区偏移2MB，外部Flash文件系统空间放在SPI Flash后面6MB空间 */
+		sector += 512;
+		
+		//一定要先擦除再写入
+		SPI_FLASH_SectorErase(sector*4096);
+		SPI_FLASH_BufferWrite((u8 *)buff,sector*4096,count*4096);
+
+		res = RES_OK;
+	
+		return res;
 
 
+	}
 
+	return RES_PARERR;
+}
+#endif
+
+
+/*-----------------------------------------------------------------------*/
+/* Miscellaneous Functions                                               */
+/*-----------------------------------------------------------------------*/
+
+#if _USE_IOCTL
+DRESULT disk_ioctl (
+	BYTE pdrv,		/* Physical drive nmuber (0..) */
+	BYTE cmd,		/* Control code */
+	void *buff		/* Buffer to send/receive control data */
+)
+{
+	DRESULT res;
+
+	switch (pdrv) {
+	case SD_CARD :
+
+		// Process of the command for the ATA drive
+
+		return res;
+
+	case SPI_FLASH :
+		
+		switch(cmd)
+		{
+			//返回扇区个数
+			case GET_SECTOR_COUNT:
+				/* 扇区数量：1536*4096/1024/1024=6(MB) */
+				*(DWORD*)buff = 1536;
+				
+			break;
+			//返回每个扇区大小
+			case GET_SECTOR_SIZE:
+				*(WORD*)buff = 4096;
+
+			break;
+			//返回擦除扇区的最小个数（单位为扇区）
+			case GET_BLOCK_SIZE:
+			 *(WORD*)buff = 1;
+			
+			break;
+			
+		}		
+			
+
+		// Process of the command for the MMC/SD card
+		res = RES_OK;
+		return res;
+
+	}
+
+	return RES_PARERR;
+}
+#endif
+
+//返回时间
+DWORD get_fattime (void)
+{
+
+	return 0;
+}
+
+```
+
+
+```main.c
+ /**
+  ******************************************************************************
+  * @file    main.c
+  * @author  fire
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   FATFS文件系统移植
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:秉火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :http://firestm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+#include "stm32f10x.h"
+#include "./usart/bsp_usart.h"
+#include "./led/bsp_led.h"
+#include "./flash/bsp_spi_flash.h"
+#include "ff.h"			
+
+
+FATFS fsObject;
+FIL fp; 
+const char wData[]="欢迎使用秉火开发板！";
+char rData[4096]="";
+
+
+UINT bw;
+UINT br;
+
+/*
+ * 函数名：main
+ * 描述  ：主函数
+ * 输入  ：无
+ * 输出  ：无
+ */
+int main(void)
+{ 	
+	FRESULT res;
+	
+	LED_GPIO_Config();
+	LED_BLUE;
+	
+	/* 配置串口为：115200 8-N-1 */
+	USART_Config();
+	printf("\r\n 这是一个FATFS文件系统移植实验 \r\n");
+	
+	//挂载文件系统
+	res = f_mount(&fsObject,"1:",1);
+
+	printf("\r\nf_mount res =%d",res);
+	
+	if(res == FR_NO_FILESYSTEM)
+	{
+		res = f_mkfs("1:",0,0);
+		printf("\r\nf_mkfs res =%d",res);
+		//格式化后要取消挂载再重新挂载文件系统
+		res = f_mount(NULL,"1:",1);
+		res = f_mount(&fsObject,"1:",1);
+		
+		printf("\r\nsecond f_mount res =%d",res);
+	}
+
+	
+	res = f_open(&fp,"1:中文文件名abcdefgadfasd.txt",FA_OPEN_ALWAYS|FA_READ|FA_WRITE);
+	printf("\r\nf_open res =%d",res);
+	
+	if(res == FR_OK)
+	{
+		res = f_write(&fp,wData,sizeof(wData),&bw);
+		printf ("\r\nbw= %d",bw);		
+
+		if(res == FR_OK)
+		{
+			f_lseek(&fp,0);
+			res = f_read (&fp,rData,f_size(&fp),&br);
+			if(res == FR_OK)
+				printf ("\r\n文件内容：%s br= %d",rData,br);		
+		}	
+		
+		f_close(&fp);
+	
+	}
+	
+
+	while(1);  
+}
+
+
+void Delay(__IO uint32_t nCount)
+{
+  for(; nCount != 0; nCount--);
+}
+/*********************************************END OF FILE**********************/
+
+```
 
 
 
@@ -2628,6 +2977,12 @@ void SysTick_Handler(void)
 
 
 
+## P 67 代码讲解--文件系统常见应用
+
+强调：使用文件系统的所有函数之前，一定要先挂载文件系统，包括要执行格式化的时候。
+执行格式化之前也需要先调用 f_mount，因为 f_mount 不仅初始化了整个文件系统，而且会初始化一些底层的 stm 32 的 SPI 初始化。
+如果整个工程没有调用 SPI 初始化，那么整个系统就不可能正常运行的。
+总之，要用到文件系统相关的内容，首先第一个要考虑的就是要先挂载这个文件系统。
 
 
 
@@ -2638,6 +2993,98 @@ void SysTick_Handler(void)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### B 站 AI 视频总结
+
+文件系统的应用和操作, 包括文件读写、文件系统的信息、存储器的信息、文件的信息以及扫描文件系统里的文件等内容。同时, 视频还介绍了如何使用文件系统来创建文件和目录并演示了这些操作的过程。此外视频还提到了文件系统所占用的存储空间以及在不同存储设备上使用文件系统的问题。
+
+- 文件系统在开发板上的应用包括读写文件、扫描文件等操作, 并解释了文件系统所占用的空间。
+02:27 扫描文件系统: 如何扫描文件系统里的文件包括文件系统信息、文件信息等。
+04:58 存储设备空间计算: 文件系统的总空间会比实际空间少，这是因为文件系统本身会占用一些空间。
+05:44 移植文件系统: 文件系统信息结构本身就占据了 300 多 kb，所以无法移植到 256 字节的 ROM 中
+
+- 文件系统的使用方法包括创建文件、写入内容、创建目录、获取文件信息等操作。
+06:44 文件系统存储和挂载: 介绍了文件系统存储和挂载的相关知识。
+09:29 文件系统操作: 介绍了文件系统的创建、读取、写入、删除等操作。
+10:34 文件扫描: 介绍了文件扫描的常用方法和应用场景。
+
+- 如何使用 USBU 盘读取开发板上的文件系统并讲解了相关操作和注意事项。
+12:01 USB 盘读取文件: 通过扫描目录和读取文件信息，展示了如何通过编程读取 USB 盘上的文件。
+13:52 文件系统操作: 详细介绍了如何挂载和操作文件系统，以及如何处理文件系统操作可能出现的错误。
+15:48 使用文件系统: 介绍了如何使用文件系统来进行文件的操作，包括打开、写入和关闭文件等。
+
+- 如何通过调试函数返回值来解决文件系统调试错误并详细介绍了多项功能测试的过程。
+17:52 返回值的使用和多功能测试
+22:17 获取文件系统信息和操作
+
+- 获取存储设备信息和读写文件的步骤包括使用函数和参数的方法。
+23:01 获取存储设备信息和读写文件过程
+27:31 读写文件的要点
+27:52 创建和写入文件的过程
+
+- 文件操作的参数设置, 包括打开、创建、追加等操作, 并详细讲解了 print 函数的用法。
+28:28 操作文件的标志位和函数的使用
+33:03 文件操作函数和字符设备驱动开发
+
+- 使用 Python 的 os 模块中的函数来实现文件的读写操作包括定位光标、读取文件等。
+33:29 文件操作: 光标移动和数据读写
+34:29 文件读取: 缓冲区和字节数计算
+37:05 读取文件: 多次读取和参数设置
+
+- 通过文件读取参数来判断文件结尾并通过重命名演示了文件管理操作。
+38:13 文件读取循环: 通过循环读取大文件，防止文件到达结尾导致读取出错。
+40:07 文件操作: 介绍了如何重命名文件、打开文件夹等操作。
+42:43 创建目录和文件: 讲解了如何创建目录和文件，以及文件的操作。
+
+- 关于文件操作的一些基本函数, 包括创建、删除、重命名等操作, 以及如何读取文件属性。
+43:32 删除和重命名文件的方法
+47:20 长文件名和短文件名之间的转换
+
+- 如何使用信息结构体获取文件信息以及如何使用 fvdir 函数扫描文件。
+48:33 获取文件信息和属性
+51:57 递归函数和文件扫描
+53:35 递归函数中的变量分配和内存管理
+
+- 如何使用长文件名和信息结构体来扫描文件和目录并避免溢出的方法。
+53:41 长文件名和文件夹扫描
+57:03 数组溢出和文件操作
+
+- 如何使用递归函数扫描目录和文件并获取文件信息的过程。
+58:52 使用 dir 函数获取文件信息
+01:00:47 递归扫描目录和文件
+01:03:30 文件操作示例: 创建文件、写入数据、追加数据、读取数据、删除文件
+
+- Skin fire 函数的执行过程和应用, 以及取消挂载文件系统的使用方法和注意事项。
+01:03:54 学习函数执行过程和扫描目录
+01:04:33 挂载和取消挂载文件系统
+01:06:02 恢复 spiflash 出厂内容
 
 
 
