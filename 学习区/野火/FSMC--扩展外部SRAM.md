@@ -79,7 +79,7 @@ T<sub>DOE</sub><25 ns，没有最低值要求，我们就可以确认，给出 O
 
 
 
-
+![[../../annex/FSMC--扩展外部SRAM_image_13.png|SRAM写过程时序图]]
 
 
 
