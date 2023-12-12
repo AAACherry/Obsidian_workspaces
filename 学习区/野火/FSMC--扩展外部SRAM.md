@@ -80,15 +80,22 @@ T<sub>DOE</sub><25 ns，没有最低值要求，我们就可以确认，给出 O
 
 
 ![[../../annex/FSMC--扩展外部SRAM_image_13.png|SRAM写过程时序图]]
+与 SRAM 读过程类似。
+1、地址线一致（A 0~A 18 整个过程都是低电平有效）
+2、片选。
+T<sub>SA</sub>就有要求了。要过了 T<sub>SA</sub>时间后使能片选信号。
+3、写使能
+当给出写使能信号之后，过了 T<sub>PWE</sub>时间后，SRAM 会在这个时刻进行采样。
+所以 STM 32 整个过程都保持数据线表示的信号有效。
+SRAM 在中间时刻对数据进行采样。
+![[../../annex/FSMC--扩展外部SRAM_image_14.png]]
+数据出现之前到采样过程是 T<sub>SD</sub>，采样之后 T<sub>HD</sub>。
 
+![[../../annex/FSMC--扩展外部SRAM_image_15.png|SRAM的读写流程]]
 
+![[../../annex/FSMC--扩展外部SRAM_image_16.png|简单列举的时间参数表]]
 
-
-
-
-
-
-
+![[../../annex/FSMC--扩展外部SRAM_image_17.png|SRAM时间参数表]]
 
 
 
