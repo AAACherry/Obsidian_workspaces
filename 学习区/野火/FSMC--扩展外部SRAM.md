@@ -311,7 +311,12 @@ STM 32 中用于控制 SRAM 的外设 FSMC，它可以控制多种存储器，�
 ![[../../annex/Pasted image 20231218225333.png|AccessMode]]
 设置存储器访问模式
 
-其实 FSMC 扩展外部 SRAM 主要只用到 ADDSET、DATAST
+其实 FSMC 扩展外部 SRAM （异步）主要只用到 ADDSET、DATAST、AccessMode
+
+![[../../annex/Pasted image 20231218230026.png]]
+
+
+
 
 
 
