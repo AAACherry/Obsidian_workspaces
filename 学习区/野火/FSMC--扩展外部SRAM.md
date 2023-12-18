@@ -296,11 +296,22 @@ STM 32 中用于控制 SRAM 的外设 FSMC，它可以控制多种存储器，�
 ![[../../annex/FSMC--扩展外部SRAM_image_39.png|FSMC时序结构体]]
 写入 0 的时候相当于延时一个时钟周期，写入相当于延时 2 个时钟周期
 
+![[../../annex/FSMC--扩展外部SRAM_image_40.png|AddressHoldTime/DataSetupTime]]
+设置地址保持时间、设置数据建立时间
 
+![[../../annex/FSMC--扩展外部SRAM_image_41.png|BusTunAroundDuration]]
+设置总线转换周期
 
+![[../../annex/Pasted image 20231218224820.png|CLKDivision]]
+设置时间分频
 
+![[../../annex/Pasted image 20231218225028.png|DataLatency]]
+设置数据的保持时间
 
+![[../../annex/Pasted image 20231218225333.png|AccessMode]]
+设置存储器访问模式
 
+其实 FSMC 扩展外部 SRAM 主要只用到 ADDSET、DATAST
 
 
 
