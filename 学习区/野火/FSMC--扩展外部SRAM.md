@@ -297,23 +297,120 @@ STM 32 中用于控制 SRAM 的外设 FSMC，它可以控制多种存储器，�
 写入 0 的时候相当于延时一个时钟周期，写入相当于延时 2 个时钟周期
 
 ![[../../annex/FSMC--扩展外部SRAM_image_40.png|AddressHoldTime/DataSetupTime]]
-设置地址保持时间、设置数据建立时间
+FSMC_AddressSetupTime 
+本成员设置地址建立时间，它可以被设置为 0-0 xF 个 HCLK 周期数，按 STM 32 标准库的默认配置，HCLK 的时钟频率为 72 MHz，即一个 HCLK 周期为1/72微秒。
+FSMC_AddressHoldTime 
+本成员设置地址保持时间，它可以被设置为 0-0 xF 个 HCLK 周期数。
+FSMC_DataSetupTime 
+本成员设置数据建立时间，它可以被设置为 0-0 xF 个 HCLK 周期数。
 
 ![[../../annex/FSMC--扩展外部SRAM_image_41.png|BusTunAroundDuration]]
-设置总线转换周期
+FSMC_BusTurnAroundDuration 
+本成员设置总线转换周期，在 NOR FLASH 存储器中，地址线与数据线可以分时复用，总线转换周期就是指总线在这两种状态间切换需要的延时，防止冲突。控制其它存储器时这个参数无效，配置为 0 即可。
 
-![[../../annex/Pasted image 20231218224820.png|CLKDivision]]
-设置时间分频
+![[../../annex/FSMC--扩展外部SRAM_image_42.png|CLKDivision]]
+FSMC_CLKDivision 
+本成员用于设置时钟分频，它以 HCLK 时钟作为输入，经过 FSMC_CLKDivision 分频后输出到 FSMC_CLK 引脚作为通讯使用的同步时钟。控制其它异步通讯的存储器时这个参数无效，配置为0即可。
 
-![[../../annex/Pasted image 20231218225028.png|DataLatency]]
-设置数据的保持时间
+![[../../annex/FSMC--扩展外部SRAM_image_43.png|DataLatency]]
+FSMC_DataLatency 
+本成员设置数据保持时间，它表示在读取第一个数据之前要等待的周期数，该周期指同步时钟的周期，本参数仅用于同步 NOR FLASH 类型的存储器，控制其它类型的存储器时，本参数无效。
 
-![[../../annex/Pasted image 20231218225333.png|AccessMode]]
-设置存储器访问模式
+![[../../annex/FSMC--扩展外部SRAM_image_44.png|AccessMode]]
+FSMC_AccessMode 
+本成员设置存储器访问模式，不同的模式下 FSMC 访问存储器地址时引脚输出的时序不一样，可选 FSMC_AccessMode_A/B/C/D 模式。一般来说控制 SRAM 时使用 A 模式。
+
+这个FSMC_NORSRAMTimingInitTypeDef 时序结构体配置的延时参数，将作为下一节的FSMC SRAM初始化结构体的一个成员。
+
 
 其实 FSMC 扩展外部 SRAM （异步）主要只用到 ADDSET、DATAST、AccessMode
 
-![[../../annex/Pasted image 20231218230026.png]]
+
+![[../../annex/FSMC--扩展外部SRAM_image_45.png]]
+
+![[../../annex/FSMC--扩展外部SRAM_image_46.png]]
+
+![[../../annex/FSMC--扩展外部SRAM_image_47.png|FSMC_Bank]]
+FSMC_Bank
+本成员用于选择 FSMC 映射的存储区域，它的可选参数以及相应的内核地址映射范围见上面的表格
+
+![[../../annex/FSMC--扩展外部SRAM_image_48.png|FSMC_DataAddressMux]]
+FSMC_DataAddressMux
+本成员用于设置地址总线与数据总线是否复用 (FSMC_DataAddressMux_Enable /Disable)，在控制 NOR FLASH 时，可以地址总线与数据总线可以分时复用，以减少使用 STM 32 信号线的数量。
+
+![[../../annex/FSMC--扩展外部SRAM_image_49.png|FSMC_MemoryType]]
+FSMC_MemoryType
+本成员用于设置**要控制的存储器类型**，它支持控制的存储器类型为 SRAM、PSRAM 以及 NOR FLASH (FSMC_MemoryType_SRAM/PSRAM/NOR)。
+
+FSMC_MemoryDataWidth
+本成员用于设置要控制的存储器的**数据宽度**，可选择设置成 8 或 16 位 (FSMC_MemoryDataWidth_8 b /16 b)。
+
+FSMC_BurstAccessMode 
+本成员用于设置是否使用突发访问模式 (FSMC_BurstAccessMode_Enable/Disable)，突发访问模式是指发送**一个地址后连续访问多个数据**，非突发模式下每访问一个数据都需要输入一个地址，仅在控制**同步类型的存储器时才能使用**突发模式。
+
+FSMC_AsynchronousWait
+本成员用于设置**是否使能在同步传输时使用的等待信号** (FSMC_AsynchronousWait_Enable/Disable)，在控制同步类型的 NOR 或 PSRAM 时，存储器可以使用 FSMC_NWAIT 引脚通知 STM32需要等待。
+
+FSMC_WaitSignalPolarity 
+本成员用于**设置等待信号的有效极性，即要求等待时，使用高电平还是低电平** (FSMC_WaitSignalPolarity_High/Low)。
+
+FSMC_WrapMode 
+本成员用于设置**是否支持把非对齐的 AHB 突发操作分割成 2 次线性操作** (FSMC_WrapMode_Enable/Disable)，该配置仅在突发模式下有效。
+
+FSMC_WaitSignalActive
+本成员用于**配置在突发传输模式时，决定存储器是在等待状态之前的一个数据周期有效还是在等待状态期间有效** (FSMC_WaitSignalActive_BeforeWaitState/DuringWaitState)。
+
+FSMC_WriteOperation 
+这个成员用于**设置是否<font color="#ff0000">写</font>使能** (FSMC_WriteOperation_ Enable /Disable)，禁止写使能的话 FSMC 只能从存储器中读取数据，不能写入。
+
+FSMC_WaitSignal
+本成员用于设置当存储器牌突发传输模式时，**是否允许通过 NWAIT 信号插入等待状态** (FSMC_WaitSignal_Enable/Disable)。
+
+FSMC_ExtendedMode
+本成员用于设置**是否使用扩展模式** (FSMC_ExtendedMode_Enable/Disable)，在非扩展模式下，对存储器读写的时序都只使用 FSMC_BCR 寄存器中的配置，即下面的 FSMC_ReadWriteTimingStruct 结构体成员；在扩展模式下，**对存储器的读写时序可以分开配置**，读时序使用 FSMC_BCR 寄存器，写时序使用 FSMC_BWTR 寄存器的配置，即下面的 FSMC_WriteTimingStruct 结构体。
+
+FSMC_ReadWriteTimingStruct
+本成员是一个**指针**，赋值时使用上一小节中讲解的时序结构体 FSMC_NORSRAMInitTypeDef 设置，**当不使用扩展模式时，读写时序都使用本成员的参数配置**。
+
+FSMC_WriteTimingStruct
+同样地，本成员也是一个**时序结构体的指针**，只有**当使用扩展模式时，本配置才有效**，它是**写操作**使用的时序。
+
+
+![[../../annex/FSMC--扩展外部SRAM_image_50.png|需要关注配置的结构体成员]]
+
+
+#### B 站 AI 视频总结
+
+与 FSMC 相关的结构体和库函数包括 Nine Fresh、PC 卡 No Fresh 和 S RAM 等存储器的控制。其中 S RAM 的初始化函数为 fmc_nsrm 初始化结构体为 fs_mc_nsrm_t。详细讲解了 FSMC 时序结构体包括地址建立时间和地址保持时间等参数的配置。最后, 以延时 20 纳秒为例, 演示了如何通过写入地址建立时间来控制 S RAM 的读写操作。
+
+- 关于 fs mcsram 相关的结构体及其使用方法，包括地址建立时间等参数的配置。
+00:04 介绍 FSMC 的相关结构体和库函数
+02:34 讲解 FSMC 时序结构体和相关配置函数
+06:18 解释 FSMC 地址建立时间的概念和单位，并举例说明如何配置延时时间
+
+- 在不同模式下, 地址保持时间、数据保持时间、总线转换周期的配置方法以及时钟分频因子的作用。
+09:03 详细讲解时间配置，后面类似。
+11:49 设置总线转换周期，只有在 no flash 存储器使用时有效。
+15:55 选择访问模式，使用模式 A 即可。
+
+- 关于 fmcsram 初始化结构体的参数配置包括读写时序、存储器类型、地址数据复用等。
+18:04 讲解了 fmcsram 的初始化结构体成员及参数
+19:55 分析了 s 2 初始化结构体，讲解了如何配置 bcr 寄存器
+23:49 讲解了 fcm data address mu x 结构体，介绍了地址线和数据线复用的情况
+
+同步通讯中 SDRAM 的配置包括同步、突发模式、扩展模式等. 同时讲解了等待信号和写使能等配置。
+27:08 配置同步通讯的 noflash 里边的突发模式
+29:10 配置等待信号在等待前有效还是等待期间有效
+32:35 配置写突发 ribus，不需要使用
+
+
+
+
+## P 72 代码讲解--初始化 SRAM
+
+
+
+
 
 
 
@@ -335,33 +432,61 @@ STM 32 中用于控制 SRAM 的外设 FSMC，它可以控制多种存储器，�
 
 
 #### B 站 AI 视频总结
+STM 32 F 103 开发板的基本原理和指南者的使用问题。讲解了 SAM 和 HFM 的连接方式, 以及如何使用不同的芯片来控制 SRAM。同时视频还详细介绍了各个引脚的功能和连接方式并提到了在使用 STM 32 内部指针访问地址时需要将片选引脚连接到 FMC 的 N 13 引脚以使 SRAM 正常工作。视频最后给出了相关的代码和资料下载链接,供读者参考
 
-与 FSMC 相关的结构体和库函数包括 Nine Fresh、PC 卡 No Fresh 和 S RAM 等存储器的控制。其中 S RAM 的初始化函数为 fmc_nsrm 初始化结构体为 fs_mc_nsrm_t。详细讲解了 FSMC 时序结构体包括地址建立时间和地址保持时间等参数的配置。最后, 以延时 20 纳秒为例, 演示了如何通过写入地址建立时间来控制 S RAM 的读写操作。
+- 如何准备写程序需要查看原理图, 了解连接说明, 以及芯片引脚匹配等问题。
+00:01 准备写程序前的原理图查看
+02:41 STM 32 VET 6 芯片与指南者芯片的区别
+05:25 STM 32 F 103 CZ 的硬件资源分配
 
-- 关于 fs mcsram 相关的结构体及其使用方法，包括地址建立时间等参数的配置。
-00:04 介绍 FSMC 的相关结构体和库函数
-02:34 讲解 FSMC 时序结构体和相关配置函数解释 FSMC 地址建立时间的概念和单位，并举
-06:18 例说明如何配置延时时间
+- FMCA 0 对应的地址以及 FMCCDO 等引脚的连接方式并讲解了控制引脚 W 1 和片选引脚 C1的用途
+05:30 地址分配和控制引脚连接
+08:28 SRAM 驱动程序测试
 
-- 在不同模式下, 地址保持时间、数据保持时间、总线转换周期的配置方法以及时钟分频因子的作用。
-09:03 详细讲解时间配置，后面类似。
-11:49 设置总线转换周期，只有在 no flash 存储器使用时有效。
-15:55 选择访问模式，使用模式 A 即可。
+- 如何访问和操作 SRAM 包括使用指针访问、读写数据等并提供了相关工程的实现方式
+11:05 通过指针访问和修改数据
+11:25 使用 16 位指针和 32 位指针写入数据
+15:10 编写程序的基本步骤和 sram 的读写操作
 
-- 关于 fmcsram 初始化结构体的参数配置包括读写时序、存储器类型、地址数据复用等。
-18:04 讲解了 fmcsram 的初始化结构体成员及参数
-19:55 分析了 s 2 初始化结构体，讲解了如何配置 bcr 寄存器
-23:49 讲解了 fcm data address mu x 结构体，介绍了地址线和数据线复用的情况
+- 如何初始化 GPIO 并将其配置为复用输出功能, 以及相关引脚的定义和配置。
+17:48 硬件引脚宏定义和 GPIO 初始化
+22:16 复用输出功能配置和时钟使能SMBUS 功能和配置
+22:22 如何配置 FM 7 外设的引脚以及如何初始化 FSMC 模式和时序结构体。
 
-同步通讯中 SDRAM 的配置包括同步、突发模式、扩展模式等. 同时讲解了等待信号和写使能等配置。
-27:08 配置同步通讯的 noflash 里边的突发模式
-29:10 配置等待信号在等待前有效还是等待期间有效
-32:35 配置写突发 ribus，不需要使用
+- 如何配置 FM7外设的引脚以及如何初始化 FSMC 模式和时序结构体。
+22:41 SFRAM 配置: 讲解了如何配置 SFRAM，包括输入输出引脚和 SRAM 的配置。
+26:15 GPIO 模式初始化: 介绍了如何初始化 GPIO 模式，包括上拉模式和非上拉模式。
+27:18 讲解了时序结构体和初始化结构体，包括如何初始化各个参数
 
+- 如何配置 FMAC 的时序包括地址和数据的设置以及采样时间等, 以实现正常数据写入。
+27:52 配置 STM 32 的时序，使用了结构体和中断服务函数。
+32:07  SDRAM 的写时序要求，包括地址信号和数据信号的有效时间。
+33:29 数据采集的时序要求，包括地址信号、数据信号和读使能信号的有效时间。
 
+- 关于写和读时序的要求, 包括 a d ds et、data s t、采样时刻等. 以及如何满足这些要求。
+34:43 写使能和读使能的时序要求
+35:41 读写时序要求和数据有效性
+39:59 时序要求和数据采集
 
+- 在配置数据寄存器时. 需要注意不能写入零否则会延时两个时钟周期。
+40:36 寄存器值写入与时钟周期关系
+44:21 配置数据存储器时间要求与技巧
+46:41 STM 32 F 103 数据存储器配置与作用
 
+- 如何配置时序结构体和初始化结构体以满足读写时序要求并进行了详细的计算和说明。
+46:48 配置显示器时序: 讲解了如何配置显示器的数据传输时序，包括地址时间、数据设置时间等
+51:10 配置时序结构体: 介绍了如何配置时序结构体，包括分屏、数据延迟等
+52:55 初始化 STM 32: 介绍了如何初始化 STM 32，包括配置时钟、设置堆栈大小等。
 
+- 如何配置 ADC 控制器包括选择寄存器组、地址复用、读写时序等. 并提供了程序示例。
+53:22 配置 STM 32 的 Bank 和引脚配置
+55:25 使用 Extend Mode 和 Read/Write Timing
+59:35 配置寄存器和时序指针
+
+- 如何使用库函数初始化 STM 32 的 SRAM 并注意了一些配置细节和读写时序的问题。
+01:00:45 延展模式和内存类型有效性配置
+01:04:11 SRAM 的初始化和配置
+01:05:58 测试延展模式和内存类型有效性
 
 
 
