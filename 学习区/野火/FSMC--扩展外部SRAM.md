@@ -408,6 +408,9 @@ FSMC_WriteTimingStruct
 
 ## P 72 代码讲解--初始化 SRAM
 
+![[../../annex/FSMC--扩展外部SRAM_image_51.png|霸道原理图]]
+指南者没法做。
+
 
 
 
