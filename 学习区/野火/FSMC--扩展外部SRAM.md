@@ -293,6 +293,8 @@ STM 32 中用于控制 SRAM 的外设 FSMC，它可以控制多种存储器，�
 
 ![[../../annex/FSMC--扩展外部SRAM_image_38.png]]
 
+
+#### 时序结构体 FSMC_NORSRAMTimingintTypeDef
 ![[../../annex/FSMC--扩展外部SRAM_image_39.png|FSMC时序结构体]]
 写入 0 的时候相当于延时一个时钟周期，写入相当于延时 2 个时钟周期
 
@@ -325,7 +327,7 @@ FSMC_AccessMode
 
 其实 FSMC 扩展外部 SRAM （异步）主要只用到 ADDSET、DATAST、AccessMode
 
-
+#### 初始化结构体 FSMC_NORSRAMintTypeDef
 ![[../../annex/FSMC--扩展外部SRAM_image_45.png]]
 
 ![[../../annex/FSMC--扩展外部SRAM_image_46.png]]
@@ -411,27 +413,538 @@ FSMC_WriteTimingStruct
 ![[../../annex/FSMC--扩展外部SRAM_image_51.png|霸道原理图]]
 指南者没法做。
 
+时序结构体作为一个指针写到初始化结构体中
+
+写时序的要求
+![[../../annex/FSMC--扩展外部SRAM_image_52.png]]
+ADDSET = 0
+DATASET = 2（DATASET 配置成 1 不能正常工作，<40 ns）
+1、 ADDSET+1+DATAST+1 >55 ns  ---- 0+1+2+1 = 55.2 ns>55 ns
+2、DATAST+1 >40 ns  ---- 2+1 = 41.4 ns >40 ns
+3、ADDSET+1 >0 ns  ---- 0+1=13.8 ns >0
+![[../../annex/FSMC--扩展外部SRAM_image_53.png]]
+
+读时序的要求
+![[../../annex/FSMC--扩展外部SRAM_image_54.png]]
+ADDSET = 0
+DATASET = 1
+1、 ADDSET+1+DATAST+1 +2 >55 ns ----0+1+1+1+2 = 69 ns >55 ns
+2、DATAST+1 >25 ns  ---- 1+1 = 27.6 ns >25 ns
+3、ADDSET+1 >0 ns  ---- 0+1=13.8 ns >0
+
+1 个 HCLK 时钟周期
+T = 1/72 MHz = 1.38* 10<sup>-8</sup> s=13.8 ns
+
+
+##### 代码
+
+```bsp_sram.c
+ /**
+  ******************************************************************************
+  * @file    bsp_xxx.c
+  * @author  STMicroelectronics
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   SRAM 底层应用函数bsp 
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */
+  
+#include "./sram/bsp_sram.h"
+
+/**
+  * @brief  初始化控制SRAM的IO
+  * @param  无
+  * @retval 无
+  */
+static void SRAM_GPIO_Config(void)
+{
+	GPIO_InitTypeDef  GPIO_InitStructure;
+ 
+  /* 使能SRAM相关的GPIO时钟 */
+
+                         /*地址信号线*/
+  RCC_APB2PeriphClockCmd(FSMC_A0_GPIO_CLK | FSMC_A1_GPIO_CLK | FSMC_A2_GPIO_CLK | 
+                         FSMC_A3_GPIO_CLK | FSMC_A4_GPIO_CLK | FSMC_A5_GPIO_CLK |
+                         FSMC_A6_GPIO_CLK | FSMC_A7_GPIO_CLK | FSMC_A8_GPIO_CLK |
+                         FSMC_A9_GPIO_CLK | FSMC_A10_GPIO_CLK| FSMC_A11_GPIO_CLK| 
+												 FSMC_A12_GPIO_CLK| FSMC_A13_GPIO_CLK|FSMC_A14_GPIO_CLK|
+												 FSMC_A15_GPIO_CLK|FSMC_A16_GPIO_CLK|FSMC_A17_GPIO_CLK|FSMC_A18_GPIO_CLK|
+                         /*数据信号线*/
+                         FSMC_D0_GPIO_CLK | FSMC_D1_GPIO_CLK | FSMC_D2_GPIO_CLK | 
+                         FSMC_D3_GPIO_CLK | FSMC_D4_GPIO_CLK | FSMC_D5_GPIO_CLK |
+                         FSMC_D6_GPIO_CLK | FSMC_D7_GPIO_CLK | FSMC_D8_GPIO_CLK |
+                         FSMC_D9_GPIO_CLK | FSMC_D10_GPIO_CLK| FSMC_D11_GPIO_CLK|
+                         FSMC_D12_GPIO_CLK| FSMC_D13_GPIO_CLK| FSMC_D14_GPIO_CLK|
+                         FSMC_D15_GPIO_CLK|  
+                         /*控制信号线*/
+                         FSMC_CS_GPIO_CLK  | FSMC_WE_GPIO_CLK | FSMC_OE_GPIO_CLK |
+                         FSMC_UDQM_GPIO_CLK|FSMC_LDQM_GPIO_CLK, ENABLE);	//	UDQM--UB,LBQM--LB
+												 
+
+
+	 /*-- GPIO 配置 -----------------------------------------------------*/
+
+  /* 通用 GPIO 配置 */
+  GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;       //配置为复用功能
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;     
+  
+  /*A地址信号线 针对引脚配置*/
+  GPIO_InitStructure.GPIO_Pin = FSMC_A0_GPIO_PIN; 
+  GPIO_Init(FSMC_A0_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A1_GPIO_PIN; 
+  GPIO_Init(FSMC_A1_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A2_GPIO_PIN; 
+  GPIO_Init(FSMC_A2_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A3_GPIO_PIN; 
+  GPIO_Init(FSMC_A3_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A4_GPIO_PIN; 
+  GPIO_Init(FSMC_A4_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A5_GPIO_PIN; 
+  GPIO_Init(FSMC_A5_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A6_GPIO_PIN; 
+  GPIO_Init(FSMC_A6_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A7_GPIO_PIN; 
+  GPIO_Init(FSMC_A7_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A8_GPIO_PIN; 
+  GPIO_Init(FSMC_A8_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A9_GPIO_PIN; 
+  GPIO_Init(FSMC_A9_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A10_GPIO_PIN; 
+  GPIO_Init(FSMC_A10_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A11_GPIO_PIN; 
+  GPIO_Init(FSMC_A11_GPIO_PORT, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.GPIO_Pin = FSMC_A12_GPIO_PIN; 
+  GPIO_Init(FSMC_A12_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A13_GPIO_PIN; 
+  GPIO_Init(FSMC_A13_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A14_GPIO_PIN; 
+  GPIO_Init(FSMC_A14_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A15_GPIO_PIN; 
+  GPIO_Init(FSMC_A15_GPIO_PORT, &GPIO_InitStructure);	
+	
+	GPIO_InitStructure.GPIO_Pin = FSMC_A16_GPIO_PIN; 
+  GPIO_Init(FSMC_A16_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A17_GPIO_PIN; 
+  GPIO_Init(FSMC_A17_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_A18_GPIO_PIN; 
+  GPIO_Init(FSMC_A18_GPIO_PORT, &GPIO_InitStructure);
+    
+  /*DQ数据信号线 针对引脚配置*/
+  GPIO_InitStructure.GPIO_Pin = FSMC_D0_GPIO_PIN; 
+  GPIO_Init(FSMC_D0_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D1_GPIO_PIN; 
+  GPIO_Init(FSMC_D1_GPIO_PORT, &GPIO_InitStructure);
+    
+  GPIO_InitStructure.GPIO_Pin = FSMC_D2_GPIO_PIN; 
+  GPIO_Init(FSMC_D2_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D3_GPIO_PIN; 
+  GPIO_Init(FSMC_D3_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D4_GPIO_PIN; 
+  GPIO_Init(FSMC_D4_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D5_GPIO_PIN; 
+  GPIO_Init(FSMC_D5_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D6_GPIO_PIN; 
+  GPIO_Init(FSMC_D6_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D7_GPIO_PIN; 
+  GPIO_Init(FSMC_D7_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D8_GPIO_PIN; 
+  GPIO_Init(FSMC_D8_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D9_GPIO_PIN; 
+  GPIO_Init(FSMC_D9_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D10_GPIO_PIN; 
+  GPIO_Init(FSMC_D10_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D11_GPIO_PIN; 
+  GPIO_Init(FSMC_D11_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D12_GPIO_PIN; 
+  GPIO_Init(FSMC_D12_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D13_GPIO_PIN; 
+  GPIO_Init(FSMC_D13_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D14_GPIO_PIN; 
+  GPIO_Init(FSMC_D14_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_D15_GPIO_PIN; 
+  GPIO_Init(FSMC_D15_GPIO_PORT, &GPIO_InitStructure);
+  
+  /*控制信号线*/
+  GPIO_InitStructure.GPIO_Pin = FSMC_CS_GPIO_PIN; 
+  GPIO_Init(FSMC_CS_GPIO_PORT, &GPIO_InitStructure);
+    
+  GPIO_InitStructure.GPIO_Pin = FSMC_WE_GPIO_PIN; 
+  GPIO_Init(FSMC_WE_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_OE_GPIO_PIN; 
+  GPIO_Init(FSMC_OE_GPIO_PORT, &GPIO_InitStructure);    
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_UDQM_GPIO_PIN; 
+  GPIO_Init(FSMC_UDQM_GPIO_PORT, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = FSMC_LDQM_GPIO_PIN; 
+  GPIO_Init(FSMC_LDQM_GPIO_PORT, &GPIO_InitStructure);	
+}			
+
+//写时序的要求
+//ADDSET = 0
+//DATASET = 2（DATASET 配置成 1 不能正常工作，<40 ns）
+//1、 ADDSET+1+DATAST+1 >55 ns  ---- 0+1+2+1 = 55.2 ns>55 ns
+//2、DATAST+1 >40 ns  ---- 2+1 = 41.4 ns >40 ns
+//3、ADDSET+1 >0 ns  ---- 0+1=13.8 ns >0
+
+//读时序的要求
+//ADDSET = 0
+//DATASET = 1
+//1、 ADDSET+1+DATAST+1 +2 >55 ns ----0+1+1+1+2 = 69 ns >55 ns
+//2、DATAST+1 >25 ns  ---- 1+1 = 27.6 ns >25 ns
+//3、ADDSET+1 >0 ns  ---- 0+1=13.8 ns >0
+
+//1 个 HCLK 时钟周期
+//T = 1/72 MHz = 1.38* 10^-8 s=13.8 ns
+
+//初始化FSMC模式
+static void FSMC_ModeConfig(void)
+{
+	//读时序
+	//时序结构体
+	FSMC_NORSRAMTimingInitTypeDef readTimInitStruct;
+	FSMC_NORSRAMTimingInitTypeDef writeTimInitStruct;
+
+	//初始化结构体
+	FSMC_NORSRAMInitTypeDef SRAMInitStruct;
+	
+	readTimInitStruct.FSMC_AccessMode = FSMC_AccessMode_A;
+	readTimInitStruct.FSMC_AddressHoldTime = 0;//SRAM没用到
+	readTimInitStruct.FSMC_AddressSetupTime = 0;//理论值
+	readTimInitStruct.FSMC_BusTurnAroundDuration = 0;//SRAM没用到
+	readTimInitStruct.FSMC_CLKDivision = 	0;//SRAM没用到
+	readTimInitStruct.FSMC_DataLatency = 0;//SRAM没用到
+	readTimInitStruct.FSMC_DataSetupTime = 2; //2是经验值,理论值为1,后面再测试
+	
+	//写时序
+	writeTimInitStruct.FSMC_AccessMode = FSMC_AccessMode_A;
+	writeTimInitStruct.FSMC_AddressHoldTime = 0;//SRAM没用到
+	writeTimInitStruct.FSMC_AddressSetupTime = 0;//理论值
+	writeTimInitStruct.FSMC_BusTurnAroundDuration = 0;//SRAM没用到
+	writeTimInitStruct.FSMC_CLKDivision = 	0;//SRAM没用到
+	writeTimInitStruct.FSMC_DataLatency = 0;//SRAM没用到
+	writeTimInitStruct.FSMC_DataSetupTime = 2; //2是经验值,理论值为1,后面再测试
+	
+	
+	SRAMInitStruct.FSMC_Bank = FSMC_Bank1_NORSRAM3;
+	SRAMInitStruct.FSMC_ExtendedMode = FSMC_ExtendedMode_Enable;
+	SRAMInitStruct.FSMC_MemoryDataWidth = FSMC_MemoryDataWidth_16b;
+	SRAMInitStruct.FSMC_MemoryType = FSMC_MemoryType_SRAM;
+	
+	//SRAM没用到
+	SRAMInitStruct.FSMC_AsynchronousWait = FSMC_AsynchronousWait_Disable;
+	SRAMInitStruct.FSMC_BurstAccessMode = FSMC_BurstAccessMode_Disable;
+	SRAMInitStruct.FSMC_DataAddressMux = FSMC_DataAddressMux_Disable;
+	SRAMInitStruct.FSMC_WaitSignal = FSMC_WaitSignal_Disable;
+	SRAMInitStruct.FSMC_WaitSignalActive = FSMC_WaitSignalActive_BeforeWaitState;
+	SRAMInitStruct.FSMC_WaitSignalPolarity = FSMC_WaitSignalPolarity_Low;
+	SRAMInitStruct.FSMC_WrapMode = FSMC_WrapMode_Disable;
+	SRAMInitStruct.FSMC_WriteBurst = FSMC_WriteBurst_Disable;
+	SRAMInitStruct.FSMC_WriteOperation = FSMC_WriteOperation_Enable;
+	
+	//读写时序结构体
+	SRAMInitStruct.FSMC_ReadWriteTimingStruct = &readTimInitStruct;
+	SRAMInitStruct.FSMC_WriteTimingStruct = &writeTimInitStruct;//FSMC_ExtendedMode配置成Enable时有效
+	
+	//把配置写入到寄存器
+	FSMC_NORSRAMInit(&SRAMInitStruct);
+	//使能FSMC
+	FSMC_NORSRAMCmd(FSMC_Bank1_NORSRAM3,ENABLE);
+	
+}
+
+
+//SRAM初始化
+void SRAME_Init(void)
+{
+	SRAM_GPIO_Config();
+	FSMC_ModeConfig();
+}
+
+
+
+   
+/*********************************************END OF FILE**********************/
+
+```
+
+```main.c
+ /**
+  ******************************************************************************
+  * @file    main.c
+  * @author  fire
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   华邦 8M串行flash测试，并将测试信息通过串口1在电脑的超级终端中打印出来
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+#include "stm32f10x.h"
+#include "./usart/bsp_usart.h"
+#include "./led/bsp_led.h"
+
+/*
+ * 函数名：main
+ * 描述  ：主函数
+ * 输入  ：无
+ * 输出  ：无
+ * 提示  ：不要乱盖PC0跳帽！！
+ */
+int main(void)
+{ 	
+	LED_GPIO_Config();
+	LED_BLUE;
+	
+	/* 配置串口为：115200 8-N-1 */
+	USART_Config();
+	printf("\r\n 这是一个8Mbyte串行flash(W25Q64)实验 \r\n");
+
+	
+	while(1);  
+}
+
+
+
+/*********************************************END OF FILE**********************/
+
+```
+
+```bsp_sram.h
+#ifndef __SRAM_H
+#define __SRAM_H
+
+#include "stm32f10x.h"
+
+
+  
+/*A地址信号线*/    
+#define FSMC_A0_GPIO_PORT        GPIOF
+#define FSMC_A0_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A0_GPIO_PIN         GPIO_Pin_0
+
+#define FSMC_A1_GPIO_PORT        GPIOF
+#define FSMC_A1_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A1_GPIO_PIN         GPIO_Pin_1
+
+#define FSMC_A2_GPIO_PORT        GPIOF
+#define FSMC_A2_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A2_GPIO_PIN         GPIO_Pin_2
+
+#define FSMC_A3_GPIO_PORT        GPIOF
+#define FSMC_A3_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A3_GPIO_PIN         GPIO_Pin_3
+
+#define FSMC_A4_GPIO_PORT        GPIOF
+#define FSMC_A4_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A4_GPIO_PIN         GPIO_Pin_4
+
+#define FSMC_A5_GPIO_PORT        GPIOF
+#define FSMC_A5_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A5_GPIO_PIN         GPIO_Pin_5
+
+#define FSMC_A6_GPIO_PORT        GPIOF
+#define FSMC_A6_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A6_GPIO_PIN         GPIO_Pin_12
+
+#define FSMC_A7_GPIO_PORT        GPIOF
+#define FSMC_A7_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A7_GPIO_PIN         GPIO_Pin_13
+
+#define FSMC_A8_GPIO_PORT        GPIOF
+#define FSMC_A8_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A8_GPIO_PIN         GPIO_Pin_14
+
+#define FSMC_A9_GPIO_PORT        GPIOF
+#define FSMC_A9_GPIO_CLK         RCC_APB2Periph_GPIOF
+#define FSMC_A9_GPIO_PIN         GPIO_Pin_15
+
+#define FSMC_A10_GPIO_PORT        GPIOG
+#define FSMC_A10_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A10_GPIO_PIN         GPIO_Pin_0
+
+#define FSMC_A11_GPIO_PORT        GPIOG
+#define FSMC_A11_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A11_GPIO_PIN         GPIO_Pin_1
+
+#define FSMC_A12_GPIO_PORT        GPIOG
+#define FSMC_A12_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A12_GPIO_PIN         GPIO_Pin_2
+
+#define FSMC_A13_GPIO_PORT        GPIOG
+#define FSMC_A13_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A13_GPIO_PIN         GPIO_Pin_3
+
+#define FSMC_A14_GPIO_PORT        GPIOG
+#define FSMC_A14_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A14_GPIO_PIN         GPIO_Pin_4
+
+#define FSMC_A15_GPIO_PORT        GPIOG
+#define FSMC_A15_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_A15_GPIO_PIN         GPIO_Pin_5
+
+#define FSMC_A16_GPIO_PORT        GPIOD
+#define FSMC_A16_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_A16_GPIO_PIN         GPIO_Pin_11
+
+#define FSMC_A17_GPIO_PORT        GPIOD
+#define FSMC_A17_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_A17_GPIO_PIN         GPIO_Pin_12
+
+#define FSMC_A18_GPIO_PORT        GPIOD
+#define FSMC_A18_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_A18_GPIO_PIN         GPIO_Pin_13
+
+/*D 数据信号线*/
+#define FSMC_D0_GPIO_PORT        GPIOD
+#define FSMC_D0_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D0_GPIO_PIN         GPIO_Pin_14
+
+#define FSMC_D1_GPIO_PORT        GPIOD
+#define FSMC_D1_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D1_GPIO_PIN         GPIO_Pin_15
+
+#define FSMC_D2_GPIO_PORT        GPIOD
+#define FSMC_D2_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D2_GPIO_PIN         GPIO_Pin_0
+
+#define FSMC_D3_GPIO_PORT        GPIOD
+#define FSMC_D3_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D3_GPIO_PIN         GPIO_Pin_1
+
+#define FSMC_D4_GPIO_PORT        GPIOE
+#define FSMC_D4_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D4_GPIO_PIN         GPIO_Pin_7
+
+#define FSMC_D5_GPIO_PORT        GPIOE
+#define FSMC_D5_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D5_GPIO_PIN         GPIO_Pin_8
+
+#define FSMC_D6_GPIO_PORT        GPIOE
+#define FSMC_D6_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D6_GPIO_PIN         GPIO_Pin_9
+
+#define FSMC_D7_GPIO_PORT        GPIOE
+#define FSMC_D7_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D7_GPIO_PIN         GPIO_Pin_10
+
+#define FSMC_D8_GPIO_PORT        GPIOE
+#define FSMC_D8_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D8_GPIO_PIN         GPIO_Pin_11
+
+#define FSMC_D9_GPIO_PORT        GPIOE
+#define FSMC_D9_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D9_GPIO_PIN         GPIO_Pin_12
+
+#define FSMC_D10_GPIO_PORT        GPIOE
+#define FSMC_D10_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D10_GPIO_PIN         GPIO_Pin_13
+
+#define FSMC_D11_GPIO_PORT        GPIOE
+#define FSMC_D11_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D11_GPIO_PIN         GPIO_Pin_14
+
+#define FSMC_D12_GPIO_PORT        GPIOE
+#define FSMC_D12_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_D12_GPIO_PIN         GPIO_Pin_15
+
+#define FSMC_D13_GPIO_PORT        GPIOD
+#define FSMC_D13_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D13_GPIO_PIN         GPIO_Pin_8
+
+#define FSMC_D14_GPIO_PORT        GPIOD
+#define FSMC_D14_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D14_GPIO_PIN         GPIO_Pin_9
+
+#define FSMC_D15_GPIO_PORT        GPIOD
+#define FSMC_D15_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_D15_GPIO_PIN         GPIO_Pin_10
+
+
+/*控制信号线*/  
+/*CS片选*/
+/*NE3 ,对应的基地址0x68000000*/
+#define FSMC_CS_GPIO_PORT        GPIOG
+#define FSMC_CS_GPIO_CLK         RCC_APB2Periph_GPIOG
+#define FSMC_CS_GPIO_PIN         GPIO_Pin_10
+
+/*WE写使能*/
+#define FSMC_WE_GPIO_PORT        GPIOD
+#define FSMC_WE_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_WE_GPIO_PIN         GPIO_Pin_5
+
+/*OE读使能*/
+#define FSMC_OE_GPIO_PORT        GPIOD
+#define FSMC_OE_GPIO_CLK         RCC_APB2Periph_GPIOD
+#define FSMC_OE_GPIO_PIN         GPIO_Pin_4
+
+
+/*LB数据掩码*/
+#define FSMC_UDQM_GPIO_PORT        GPIOE
+#define FSMC_UDQM_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_UDQM_GPIO_PIN         GPIO_Pin_1
+
+/*UB数据掩码*/
+#define FSMC_LDQM_GPIO_PORT        GPIOE
+#define FSMC_LDQM_GPIO_CLK         RCC_APB2Periph_GPIOE
+#define FSMC_LDQM_GPIO_PIN         GPIO_Pin_0
+
+
+
+//SRAM初始化
+void SRAME_Init(void);
 
 
 
 
+#endif /* __SRAM_H */
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```
 
 
 #### B 站 AI 视频总结
@@ -493,6 +1006,7 @@ STM 32 F 103 开发板的基本原理和指南者的使用问题。讲解了 SAM
 
 
 
+## P 73 代码讲解--读写 SRAM
 
 
 
@@ -517,6 +1031,33 @@ STM 32 F 103 开发板的基本原理和指南者的使用问题。讲解了 SAM
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### B 站 AI 视频总结
+
+如何通过指针访问 STM32的 SRAM 进行读写测试。首先需要定义 SRAM 的基地址和大小，然后通过指针访问地址来实现对 SRAM 的读写操作。通过配置 FSMC，FMAC 会产生时序来访间 SRAM，并将数据写入 SRAM 中。通过读取地址可以获取写入的数据内容。视频中演示了如何进行读写测试，并提到了可能出现的问题和解决方法。
 
 
 
