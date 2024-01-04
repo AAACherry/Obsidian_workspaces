@@ -1011,47 +1011,94 @@ STM 32 F 103 开发板的基本原理和指南者的使用问题。讲解了 SAM
 直接使用指针的方式对 STM 32 内存地址进行访问，访问内存地址的时候 FSMC 会自动激活，就会产生时序来访问 SRAM，对 SRAM 的内容进行读写。
 
 
+```main.c
+ /**
+  ******************************************************************************
+  * @file    main.c
+  * @author  fire
+  * @version V1.0
+  * @date    2013-xx-xx
+  * @brief   SRAM测试
+  ******************************************************************************
+  * @attention
+  *
+  * 实验平台:野火 F103-指南者 STM32 开发板 
+  * 论坛    :http://www.firebbs.cn
+  * 淘宝    :https://fire-stm32.taobao.com
+  *
+  ******************************************************************************
+  */ 
+#include "stm32f10x.h"
+#include "./usart/bsp_usart.h"
+#include "./led/bsp_led.h"
+#include "./sram/bsp_sram.h"
+
+//1.使用指针对SRAM进行读写
+//2.使用绝对地址的方式来访问SRAM
+
+//uint8_t testValue;//由编译器分配地址，没有指定时直接分配到0x20000028，，这个地址范围是STM32内部的SRAM
+//使用__attribute__ 定义变量时，需要定义为全局变量
+uint8_t testValue __attribute__ ((at (SRAM_BASE_ADDR+0x40)));//让这个全局变量指定向某一个地址，这个地址刚好是SRAM的基地址，访问这个变量的时候就能直接访问SRAM了
+//本身变量的地址是由MDK编译器分配的，但是通过语法可以指定它指向某一个地址
+
+
+/*
+ * 函数名：main
+ * 描述  ：主函数
+ * 输入  ：无
+ * 输出  ：无
+ * 提示  ：不要乱盖PC0跳帽！！
+ */
+int main(void)
+{ 
+	
+//	uint8_t testValue __attribute__ ((at (SRAM_BASE_ADDR+0x40)));//如果定义为局部变量，它的地址还是在内部SRAM的范围
+	//为什么不能在局部变量的时候使用？是因为局部变量使用的是Stack栈区的空间，栈区空间默认分配到内部SRAM的。
+	
+	uint8_t *p;
+	uint16_t *p16;
+	float *pf;
+//	uint8_t temp;
+	
+	LED_GPIO_Config();
+	LED_BLUE;
+	
+	/* 配置串口为：115200 8-N-1 */
+	USART_Config();
+	printf("\r\n 这是一个SRAM测试实验 \r\n");
+	SRAME_Init();
+	
+	//把数据强制转化成指针
+	p = (uint8_t *)SRAM_BASE_ADDR;
+	
+	*p = 0xAB;
+	
+//	temp = *p;
+	
+	printf("\r\n读出的数据内容为： 0x%x\r\n",*p);
+	
+	//转换成16位的指针，一次可以访问2个字节的内容
+	p16 = (uint16_t *)(SRAM_BASE_ADDR+10);
+	*p16 = 0xcdef;
+	printf("\r\n读出的数据内容为： 0x%x\r\n",*p16);
+	
+	//类似的可以写32位(如float)的指针
+	pf = (float *)(SRAM_BASE_ADDR+20);
+	*pf = 56.35;
+	printf("\r\n读出的数据内容为： 0x%.2f\r\n",*pf);
+	
+	testValue = 50;
+	
+	printf("testValue = %d,testValue addr = 0x%x",testValue,(unsigned int)&testValue);
+
+	while(1);  
+}
 
 
 
+/*********************************************END OF FILE**********************/
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```
 
 
 
