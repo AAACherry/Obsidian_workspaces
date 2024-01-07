@@ -260,36 +260,90 @@ HADDR 的第 1 根数据线跟 NOR FLASH 的第 0 根数据线是连接的，达
 所以说比如在我们要控制 A 0 地址为输出高电平的时候，实际上要访问 0010 地址的时候才能正常的把 FSMC 的 A0 地址线产生一个达到我们高低电平的目的。也就是说，想要控制 A 0 地址线，在控制的结果要左移一位，相当于控制的时候要左移一位。
 
 
-## FSMC 相关结构体介绍
+## P 78 FSMC 相关结构体介绍
+跟 SRAM 基本一致，访问模式换成模式 B。
+##### NOR FLASH 时序结构体
+与控制SRAM时一样，控制FSMC使用NOR FLASH存储器时主要是配置时序寄存器以及控制寄存器，利用ST标准库的时序结构体以及初始化结构体可以很方便地写入参数。
+![[../../annex/LCD-液晶显示_image_34.png]]
+最重要的是 AddressSetupTime、DataSetupTime、AccessMode，设置 ADDSET、DATAST、设置访问模式。
+
+##### FSMC 时序结构体
+![[../../annex/LCD-液晶显示_image_35.png]]
+
+FSMC_AddressSetupTime 
+本成员设置地址建立时间，它可以被设置为 0-0 xF 个 HCLK 周期数，按 STM 32 标准库的默认配置，HCLK 的时钟频率为 72 MHz，即一个 HCLK 周期为1/72微秒。（HCLK 不是一定是 72 M，HCLK 跟 STM 32 的主频是一致的，主频是 36 M 就是 36 M，主频是 72 M 就是 72 M。这里配置 n 个 HCLK 时钟，所以用 n X 1/72 微秒，就可以得出延时多少时间）
+
+FSMC_AddressHoldTime 
+本成员设置地址保持时间，它可以被设置为 0-0 xF 个 HCLK 周期数。
+
+FSMC_DataSetupTime 
+本成员设置数据建立时间，它可以被设置为 0-0 xF 个 HCLK 周期数。
+
+FSMC_BusTurnAroundDuration 
+本成员设置总线转换周期，在 NOR FLASH 存储器中，地址线与数据线可以分时复用，总线转换周期就是指总线在这两种状态间切换需要的延时，防止冲突。控制其它存储器时这个参数无效，配置为 0 即可。
+
+FSMC_CLKDivision 
+本成员用于设置时钟分频，它以 HCLK 时钟作为输入，经过 FSMC_CLKDivision 分频后输出到 FSMC_CLK 引脚作为通讯使用的同步时钟。控制其它异步通讯的存储器时这个参数无效，配置为0即可。
+
+FSMC_DataLatency 
+本成员设置数据保持时间，它表示在读取第一个数据之前要等待的周期数，该周期指同步时钟的周期，本参数仅用于同步 NOR FLASH 类型的存储器，控制其它类型的存储器时，本参数无效。
+
+FSMC_AccessMode 
+本成员设置存储器访问模式，不同的模式下 FSMC 访问存储器地址时引脚输出的时序不一样，可选 FSMC_AccessMode_A/B/C/D 模式。一般来说控制异步 NOR FLASH 时使用 B 模式。
+
+这个FSMC_NORSRAMTimingInitTypeDef 时序结构体配置的延时参数，将作为下一节的FSMC SRAM初始化结构体的一个成员。
 
 
+##### FSMC 的 NOR FLASH 初始化结构体
+FSMC初始化结构体，除最后两个成员是上一小节讲解的时序配置外，其它结构体成员的配置都对应到FSMC_BCR中的寄存器位。
+![[../../annex/LCD-液晶显示_image_36.png]]
 
 
+![[../../annex/LCD-液晶显示_image_37.png]]
 
+![[../../annex/Pasted image 20240107224403.png]]
 
+FSMC_Bank
+本成员用于选择 FSMC 映射的存储区域，它的可选参数以及相应的内核地址映射范围见上面的表格
 
+FSMC_DataAddressMux
+本成员用于设置地址总线与数据总线是否复用 (FSMC_DataAddressMux_Enable /Disable)，在控制 NOR FLASH 时，可以地址总线与数据总线可以分时复用，以减少使用 STM 32 信号线的数量。
 
+FSMC_MemoryType
+本成员用于设置要控制的存储器类型，它支持控制的存储器类型为 SRAM、PSRAM 以及 NOR FLASH (FSMC_MemoryType_SRAM/PSRAM/NOR)。
 
+FSMC_MemoryDataWidth
+本成员用于设置要控制的存储器的数据宽度，可选择设置成 8 或 16 位 (FSMC_MemoryDataWidth_8 b /16 b)。
 
+FSMC_BurstAccessMode 
+本成员用于设置是否使用突发访问模式 (FSMC_BurstAccessMode_Enable/Disable)，突发访问模式是指发送一个地址后连续访问多个数据，非突发模式下每访问一个数据都需要输入一个地址，仅在控制同步类型的存储器时才能使用突发模式。
 
+FSMC_AsynchronousWait
+本成员用于设置是否使能在同步传输时使用的等待信号 (FSMC_AsynchronousWait_Enable/Disable)，在控制同步类型的 NOR 或 PSRAM 时，存储器可以使用 FSMC_NWAIT 引脚通知 STM32需要等待。
 
+FSMC_WaitSignalPolarity 
+本成员用于设置等待信号的有效极性，即要求等待时，使用高电平还是低电平 (FSMC_WaitSignalPolarity_High/Low)。
 
+FSMC_WrapMode 
+本成员用于设置是否支持把非对齐的 AHB 突发操作分割成 2 次线性操作 (FSMC_WrapMode_Enable/Disable)，该配置仅在突发模式下有效。
 
+FSMC_WaitSignalActive
+本成员用于配置在突发传输模式时，决定存储器是在等待状态之前的一个数据周期有效还是在等待状态期间有效 (FSMC_WaitSignalActive_BeforeWaitState/DuringWaitState)。
 
+FSMC_WriteOperation 
+这个成员用于设置是否写使能 (FSMC_WriteOperation_ Enable /Disable)，禁止写使能的话 FSMC 只能从存储器中读取数据，不能写入。
 
+FSMC_WaitSignal
+本成员用于设置当存储器牌突发传输模式时，是否允许通过 NWAIT 信号插入等待状态 (FSMC_WaitSignal_Enable/Disable)。
 
+FSMC_ExtendedMode
+本成员用于设置是否使用扩展模式 (FSMC_ExtendedMode_Enable/Disable)，在非扩展模式下，对存储器读写的时序都只使用 FSMC_BCR 寄存器中的配置，即下面的 FSMC_ReadWriteTimingStruct 结构体成员；在扩展模式下，对存储器的读写时序可以分开配置，读时序使用 FSMC_BCR 寄存器，写时序使用 FSMC_BWTR 寄存器的配置，即下面的 FSMC_WriteTimingStruct 结构体。
 
+FSMC_ReadWriteTimingStruct
+本成员是一个指针，赋值时使用上一小节中讲解的时序结构体 FSMC_NORSRAMInitTypeDef 设置，当不使用扩展模式时，读写时序都使用本成员的参数配置。
 
-
-
-
-
-
-
-
-
-
-
+FSMC_WriteTimingStruct
+同样地，本成员也是一个时序结构体的指针，只有当使用扩展模式时，本配置才有效，它是写操作使用的时序。
 
 
 
