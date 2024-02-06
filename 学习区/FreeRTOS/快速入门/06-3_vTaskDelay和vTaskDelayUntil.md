@@ -37,13 +37,13 @@ vTaskDelayUntil(t1,△t);
 2、传入指针的意思就是会去更新这个值：*pxPre=*pxPre+△t。这样下次的时候又可以重新去调用它，不需要修改时间，只需传入参数即可。
 ```
 
-![[../../../annex/Pasted image 20240205222219.png]]
+![[../../../annex/06-3_vTaskDelay和vTaskDelayUntil_image_10.png]]
 
 到达 t2 后，会从这个函数（vTaskDelayUntil (&tStart, 20)）里面退出来。除此之外还会更新 tStart=t2=t1+20
 
-![[../../../annex/Pasted image 20240205222625.png]]
+![[../../../annex/06-3_vTaskDelay和vTaskDelayUntil_image_11.png]]
 任务启动的时刻是周期性的
-![[../../../annex/Pasted image 20240205222752.png]]
+![[../../../annex/06-3_vTaskDelay和vTaskDelayUntil_image_12.png]]
 波形是周期性出现高电平的
 
 
