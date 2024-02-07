@@ -1016,6 +1016,8 @@ HAL_TIM_Base_Start_IT(&htim3);//打开定时器3
 
 ![[../../annex/Pasted image 20240207172405.png]]
 
+![[../../annex/Pasted image 20240208002414.png]]
+
 
 ###### 代码
 
@@ -2812,27 +2814,738 @@ E1 E2 E3 对应 A0 A1 A2。接地，相当于是 0。
 
 读 1，写 0。
 为什么有 3 个不确定是位？比如有 8 个 EEPROM 芯片, 用以区分不同的芯片。可以同时来控制 8 个相同的芯片，因为 IIC 总线是可以复用的，一个总线上可以挂很多个芯片
+
+弹幕：AT24C02地址的组成，由固定位（1010）和可编程位（就是自己定义，但原理图上都已经接地了其实就是000）以及最后的读写位决定
 ![[../../annex/Pasted image 20240207222910.png]]
 
 
 ![[../../annex/Pasted image 20240207223518.png]]
 
 弹幕：但芯片手册上的是需要 SendNotAck，希望 up 解答一下
+弹幕：WaitAck()和 SendNotAck()都行
+弹幕：但芯片手册上的是需要 SendNotAck，希望 up 解答一下
+弹幕：大佬们 uint 不是占4字节，32位吗？求解答
+弹幕：好像是因为 keil 编译器的原因，long int 就是32位
+弹幕：int 的定义不一样，Keil 里就是16位
+
+弹幕：读的是低八位，读的时候把高八位右移八位，显示的时候肯定要往左移
+弹幕：左移：高位丢弃，低位补0
 
 
 
+![[../../annex/Pasted image 20240208002558.png]]
+
+![[../../annex/Pasted image 20240208002705.png]]
+
+![[../../annex/Pasted image 20240208002744.png]]
+
+![[../../annex/Pasted image 20240208002837.png]]
+
+![[../../annex/Pasted image 20240208002933.png]]
+
+![[../../annex/Pasted image 20240208003102.png]]
+
+![[../../annex/Pasted image 20240208003814.png]]
+
+
+###### 代码
+
+```i2c_hal.c
+/*
+  程序说明: CT117E-M4嵌入式竞赛板GPIO模拟I2C总线驱动程序
+  软件环境: MDK-ARM HAL库
+  硬件环境: CT117E-M4嵌入式竞赛板
+  日    期: 2020-3-1
+*/
+
+#include "i2c_hal.h"//#include "i2c - hal.h"
+
+#define DELAY_TIME	20
+
+/**
+  * @brief SDA线输入模式配置
+  * @param None
+  * @retval None
+  */
+void SDA_Input_Mode()
+{
+    GPIO_InitTypeDef GPIO_InitStructure = {0};
+
+    GPIO_InitStructure.Pin = GPIO_PIN_7;
+    GPIO_InitStructure.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStructure.Pull = GPIO_PULLUP;
+    GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+}
+
+/**
+  * @brief SDA线输出模式配置
+  * @param None
+  * @retval None
+  */
+void SDA_Output_Mode()
+{
+    GPIO_InitTypeDef GPIO_InitStructure = {0};
+
+    GPIO_InitStructure.Pin = GPIO_PIN_7;
+    GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStructure.Pull = GPIO_NOPULL;
+    GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+}
+
+/**
+  * @brief SDA线输出一个位
+  * @param val 输出的数据
+  * @retval None
+  */
+void SDA_Output( uint16_t val )
+{
+    if ( val )
+    {
+        GPIOB->BSRR |= GPIO_PIN_7;
+    }
+    else
+    {
+        GPIOB->BRR |= GPIO_PIN_7;
+    }
+}
+
+/**
+  * @brief SCL线输出一个位
+  * @param val 输出的数据
+  * @retval None
+  */
+void SCL_Output( uint16_t val )
+{
+    if ( val )
+    {
+        GPIOB->BSRR |= GPIO_PIN_6;
+    }
+    else
+    {
+        GPIOB->BRR |= GPIO_PIN_6;
+    }
+}
+
+/**
+  * @brief SDA输入一位
+  * @param None
+  * @retval GPIO读入一位
+  */
+uint8_t SDA_Input(void)
+{
+	if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7) == GPIO_PIN_SET){
+		return 1;
+	}else{
+		return 0;
+	}
+}
+
+
+/**
+  * @brief I2C的短暂延时
+  * @param None
+  * @retval None
+  */
+static void delay1(unsigned int n)
+{
+    uint32_t i;
+    for ( i = 0; i < n; ++i);
+}
+
+/**
+  * @brief I2C起始信号
+  * @param None
+  * @retval None
+  */
+void I2CStart(void)
+{
+    SDA_Output(1);
+    delay1(DELAY_TIME);
+    SCL_Output(1);
+    delay1(DELAY_TIME);
+    SDA_Output(0);
+    delay1(DELAY_TIME);
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+}
+
+/**
+  * @brief I2C结束信号
+  * @param None
+  * @retval None
+  */
+void I2CStop(void)
+{
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+    SDA_Output(0);
+    delay1(DELAY_TIME);
+    SCL_Output(1);
+    delay1(DELAY_TIME);
+    SDA_Output(1);
+    delay1(DELAY_TIME);
+
+}
+
+/**
+  * @brief I2C等待确认信号
+  * @param None
+  * @retval None
+  */
+unsigned char I2CWaitAck(void)
+{
+    unsigned short cErrTime = 5;
+    SDA_Input_Mode();
+    delay1(DELAY_TIME);
+    SCL_Output(1);
+    delay1(DELAY_TIME);
+    while(SDA_Input())
+    {
+        cErrTime--;
+        delay1(DELAY_TIME);
+        if (0 == cErrTime)
+        {
+            SDA_Output_Mode();
+            I2CStop();
+            return ERROR;
+        }
+    }
+    SDA_Output_Mode();
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+    return SUCCESS;
+}
+
+/**
+  * @brief I2C发送确认信号
+  * @param None
+  * @retval None
+  */
+void I2CSendAck(void)
+{
+    SDA_Output(0);
+    delay1(DELAY_TIME);
+    delay1(DELAY_TIME);
+    SCL_Output(1);
+    delay1(DELAY_TIME);
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+
+}
+
+/**
+  * @brief I2C发送非确认信号
+  * @param None
+  * @retval None
+  */
+void I2CSendNotAck(void)
+{
+    SDA_Output(1);
+    delay1(DELAY_TIME);
+    delay1(DELAY_TIME);
+    SCL_Output(1);
+    delay1(DELAY_TIME);
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+
+}
+
+/**
+  * @brief I2C发送一个字节
+  * @param cSendByte 需要发送的字节
+  * @retval None
+  */
+void I2CSendByte(unsigned char cSendByte)
+{
+    unsigned char  i = 8;
+    while (i--)
+    {
+        SCL_Output(0);
+        delay1(DELAY_TIME);
+        SDA_Output(cSendByte & 0x80);
+        delay1(DELAY_TIME);
+        cSendByte += cSendByte;
+        delay1(DELAY_TIME);
+        SCL_Output(1);
+        delay1(DELAY_TIME);
+    }
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+}
+
+/**
+  * @brief I2C接收一个字节
+  * @param None
+  * @retval 接收到的字节
+  */
+unsigned char I2CReceiveByte(void)
+{
+    unsigned char i = 8;
+    unsigned char cR_Byte = 0;
+    SDA_Input_Mode();
+    while (i--)
+    {
+        cR_Byte += cR_Byte;
+        SCL_Output(0);
+        delay1(DELAY_TIME);
+        delay1(DELAY_TIME);
+        SCL_Output(1);
+        delay1(DELAY_TIME);
+        cR_Byte |=  SDA_Input();
+    }
+    SCL_Output(0);
+    delay1(DELAY_TIME);
+    SDA_Output_Mode();
+    return cR_Byte;
+}
+
+//
+void I2CInit(void)
+{
+    GPIO_InitTypeDef GPIO_InitStructure = {0};
+
+    GPIO_InitStructure.Pin = GPIO_PIN_7 | GPIO_PIN_6;
+    GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStructure.Pull = GPIO_PULLUP;
+    GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+}
+
+
+uchar eeprom_read(uchar addr)//传参，它的地址
+{
+	unsigned char dat;
+	I2CStart();//第一步，开启
+	I2CSendByte(0xa0);//第二步，联系芯片(把数据发送出去),传参地址应该是0xa0（先放1个写,因为要先联系芯片，并告诉它要读哪个引脚,告诉它的过程就相当于写）
+	I2CWaitAck();//写完之后，等待应答
+	I2CSendByte(addr);//发送要读取的地址,要发的是addr地址,这是一个参数，到时候调用的时候传递过来了
+	I2CWaitAck();//发完之后再来一个等待
+	I2CStop();//IIC可以停止歇歇
+	
+	I2CStart();//停止完再打开
+	I2CSendByte(0xa1);//读
+	I2CWaitAck();//发送完后，继续等待
+	dat = I2CReceiveByte();//等待完就可以接收了
+	I2CWaitAck();
+	I2CStop();//读取完毕，停止下来
+	
+	return dat;//把结果返回
+}
+
+void eeprom_write(uchar addr,uchar dat)//写函数，没有返回值//这个数据必须是8位数，芯片的要求
+{
+	I2CStart();//开启
+	I2CSendByte(0xa0);//联系芯片(把数据发送出去),传参地址应该是0xa0（先放1个写,因为要先联系芯片，并告诉它要读哪个引脚,告诉它的过程就相当于写）
+	I2CWaitAck();//联系完后，等待应答
+	I2CSendByte(addr);//发送要写入的地址,要写的是addr地址,这是一个参数，到时候调用的时候传递过来了
+	I2CWaitAck();//等待应答
+	
+	I2CSendByte(dat);//直接发送给芯片，不停止了
+	I2CWaitAck();//发完之后再来个等待
+	I2CStop();
+}
+
+
+```
+
+```i2c_hal.h
+#ifndef __I2C_HAL_H
+#define __I2C_HAL_H
+
+#include "stm32g4xx_hal.h"
+
+void I2CStart(void);
+void I2CStop(void);
+unsigned char I2CWaitAck(void);
+void I2CSendAck(void);
+void I2CSendNotAck(void);
+void I2CSendByte(unsigned char cSendByte);
+unsigned char I2CReceiveByte(void);
+void I2CInit(void);
+
+typedef unsigned char uchar;
+
+uchar eeprom_read(uchar addr);
+void eeprom_write(uchar addr,uchar dat);
+
+#endif
+
+```
+
+```main.c
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.</center></h2>
+  *
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "adc.h"
+#include "tim.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "led.h"
+#include "lcd.h"
+#include "stdio.h"
+#include "interrupt.h"
+#include "bsp_adc.h"
+#include "i2c_hal.h"
+#define uchar unsigned char
+#define uint unsigned int
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+extern struct keys key[];
+extern uint frq1,frq2;//就是计算得到的两个频率值
+uchar view = 0;
+void key_proc(void);
+void disp_proc(void);
+
+uchar pa6_duty = 10;//定义两个变量，分别是两个通道PWM的占空比
+uchar pa7_duty = 10;
+
+//typedef unsigned char uchar;
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM3_Init();
+  MX_TIM16_Init();
+  MX_TIM17_Init();
+  MX_TIM2_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
+  /* USER CODE BEGIN 2 */
+	LED_Disp(0x00);//LED的初始化,让所有LED都熄灭
+	LCD_Init();//LCD初始化
+	
+	LCD_Clear(Black);
+	LCD_SetBackColor(Black);
+	LCD_SetTextColor(White);
+	
+//	LCD_DisplayStringLine(Line0, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line1, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line2, (uint8_t *)"      LCD Test      ");
+//	LCD_DisplayStringLine(Line3, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line4, (uint8_t *)"                    ");
+//	
+//	LCD_SetBackColor(White);
+//	LCD_SetTextColor(Blue);
+
+//	LCD_DisplayStringLine(Line5, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line6, (uint8_t *)"       HAL LIB      ");
+//	LCD_DisplayStringLine(Line7, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line8, (uint8_t *)"         @80        ");
+//	LCD_DisplayStringLine(Line9, (uint8_t *)"                    ");
+
+	HAL_TIM_Base_Start_IT(&htim3);//打开定时器3
+	
+	HAL_TIM_PWM_Start(&htim16,TIM_CHANNEL_1);//第一个参数是使用哪个定时器,第二个参数是通道几
+	HAL_TIM_PWM_Start(&htim17,TIM_CHANNEL_1);//两个定时器的PWM输出的开启
+	
+	HAL_TIM_IC_Start_IT(&htim2,TIM_CHANNEL_1);//频率测量捕获定时器开启
+	HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_1);	
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+//		LED_Disp(0x01);
+//		HAL_Delay(500);
+//		LED_Disp(0x00);
+//		HAL_Delay(500);
+		
+//		char text[30];
+//		uint i=5;
+//		sprintf(text,"CNBR:%d",i);//第二个参数是我们要打印的内容
+//		LCD_DisplayStringLine(Line9, (uint8_t *)text);
+//		
+//		if(key[0].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key0down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+//		if(key[1].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key1down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+		
+		key_proc();//先判断按键
+		disp_proc();//判断完显示
+
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
+  RCC_OscInitStruct.PLL.PLLN = 20;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the peripherals clocks
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
+  PeriphClkInit.Adc12ClockSelection = RCC_ADC12CLKSOURCE_SYSCLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+void key_proc(void)//按键按下的过程
+{
+		if(key[0].single_flag == 1)//按键被按下
+		{
+			view = !view;
+			LCD_Clear(Black);
+			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[1].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa6_duty += 10;
+			if(pa6_duty>=100) pa6_duty = 10;
+			__HAL_TIM_SetCompare(&htim16,TIM_CHANNEL_1,pa6_duty);
+			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		if(key[2].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa7_duty += 10;
+			if(pa7_duty>=100) pa7_duty = 10;
+			__HAL_TIM_SetCompare(&htim17,TIM_CHANNEL_1,pa7_duty);
+			key[2].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[3].single_flag == 1)//按键被按下，存储数据到EEPROM的两个区域中
+		{
+			uchar frq_h = frq1>>8;//frq频率是16位的数（uint型），但是EEPROM一个位只能存8位的数，所以要拆成高8位和低8位
+			uchar frq_l = frq1&0xff;//拆成高8位和低8位
+			eeprom_write(1,frq_h);//存高8位到1的位置
+			HAL_Delay(10);//注意，要加一个延迟//延迟10ms。因为写入是需要时间的，不加延迟可能写不进去
+			eeprom_write(2,frq_l);//存低8位到2的位置
+			key[3].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+}
+
+void disp_proc(void)//显示界面的过程
+{
+	
+	if(view == 0)
+	{	
+		char text[30];
+		sprintf(text,"      Data");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+	
+		sprintf(text,"      FRQ1=%d",frq1);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"      FRQ2=%d",frq2);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+		sprintf(text,"      V1:=%.2f    ",getADC(&hadc1));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line6, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		sprintf(text,"      V2:=%.2f    ",getADC(&hadc2));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line7, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		//V1：如果显示有白块，转化成英文再输入:
+		
+		//把存进去的数再显示出来
+		//先需要把读出的数据进行一个处理
+		uint eep_temp = (eeprom_read(1)<<8)+eeprom_read(2);//先读取第一位（高8位），高8位操作右移8位
+		sprintf(text,"      FRQ_eep=%d    ",eep_temp);//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line8, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+	}
+	if(view == 1)
+	{
+		char text[30];
+		sprintf(text,"      Para");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"    PA6:%d%%",pa6_duty);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"    PA7:%d%%",pa7_duty);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+	}
+}	
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+```
+
+```main,c改
+#include "i2c_hal.h"
+
+		if(key[3].single_flag == 1)//按键被按下，存储数据到EEPROM的两个区域中
+		{
+			uchar frq_h = frq1>>8;//frq频率是16位的数（uint型），但是EEPROM一个位只能存8位的数，所以要拆成高8位和低8位
+			uchar frq_l = frq1&0xff;//拆成高8位和低8位
+			eeprom_write(1,frq_h);//存高8位到1的位置
+			HAL_Delay(10);//注意，要加一个延迟//延迟10ms。因为写入是需要时间的，不加延迟可能写不进去
+			eeprom_write(2,frq_l);//存低8位到2的位置
+			key[3].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+
+		//把存进去的数再显示出来
+		//先需要把读出的数据进行一个处理
+		uint eep_temp = (eeprom_read(1)<<8)+eeprom_read(2);//先读取第一位（高8位），高8位操作右移8位
+		sprintf(text,"      FRQ_eep=%d    ",eep_temp);//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line8, (uint8_t *)text);//第3行被占用了，给它改显示到第8行
+```
 
 
 
-
-
-
-
-
-
-
-
-
+##### P 11 
 
 
 
