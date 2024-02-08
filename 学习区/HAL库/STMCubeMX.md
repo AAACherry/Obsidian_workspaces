@@ -3553,6 +3553,32 @@ IIC 则侧重于和一些芯片外设去通信。
 ![[../../annex/STMCubeMX_image_54.png]]
 串口跟开发板的连接方式，连接到了调试器上，通过调试器（DAP Link）一起转发给电脑
 
+如果不配置 LCD 的话，会默认把端口弄到 PC 4 (TX)、PC 5 (RX)，要手动改成 PA 9 (TX) 和 PA 10（RX）
+![[../../annex/STMCubeMX_image_55.png]]
+
+![[../../annex/STMCubeMX_image_56.png]]
+
+![[../../annex/STMCubeMX_image_57.png]]
+具体看题目要求
+
+![[../../annex/Pasted image 20240208165247.png]]
+打开接收中断
+
+
+除了接收，更重要的是要把它解析出来。
+
+![[../../annex/Pasted image 20240208170932.png]]
+接收位数一定要填 1，每次中断只能接收 1 个字符
+
+弹幕：这个 IT 函数的意思是打开中断，用中断去接受，不是在中断里面使用
+弹幕：中断回调是接收了多少个数据，就进入中断回调，填5代表每接收5个数据回调一次
+弹幕：这里为什么 rx_poiner 不需要赋予初值0啊
+弹幕：全局变量自动初始化位0吧
+
+![[../../annex/Pasted image 20240208172913.png]]
+
+![[../../annex/Pasted image 20240208180800.png]]
+CNBR:A392:200202120000
 
 
 
@@ -3560,14 +3586,1012 @@ IIC 则侧重于和一些芯片外设去通信。
 
 
 
+###### 代码--发送
+
+```main,c改
+#include "string.h"
+
+		char temp[20];//把频率上显示的频率frq1发送出去
+		sprintf(temp,"frq=%d\r\n",frq1);//与LCD类型，也用sprintf
+		HAL_UART_Transmit(&huart1,(uint8_t *)temp,strlen(temp),50);//需要添加库string.h
+		//参数1：串口几，使能了串口1填串口1；参数2：要发送的数据，先强制转换；参数3：要发送的程度，可以通过函数来得出；参数4：超时时间
+
+```
+
+```main.c
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.</center></h2>
+  *
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "adc.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "led.h"
+#include "lcd.h"
+#include "stdio.h"
+#include "interrupt.h"
+#include "bsp_adc.h"
+#include "i2c_hal.h"
+#include "string.h"
+#define uchar unsigned char
+#define uint unsigned int
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+extern struct keys key[];
+extern uint frq1,frq2;//就是计算得到的两个频率值
+uchar view = 0;
+void key_proc(void);
+void disp_proc(void);
+
+uchar pa6_duty = 10;//定义两个变量，分别是两个通道PWM的占空比
+uchar pa7_duty = 10;
+
+//typedef unsigned char uchar;
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM3_Init();
+  MX_TIM16_Init();
+  MX_TIM17_Init();
+  MX_TIM2_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
+  MX_USART1_UART_Init();
+  /* USER CODE BEGIN 2 */
+	LED_Disp(0x00);//LED的初始化,让所有LED都熄灭
+	LCD_Init();//LCD初始化
+	
+	LCD_Clear(Black);
+	LCD_SetBackColor(Black);
+	LCD_SetTextColor(White);
+	
+//	LCD_DisplayStringLine(Line0, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line1, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line2, (uint8_t *)"      LCD Test      ");
+//	LCD_DisplayStringLine(Line3, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line4, (uint8_t *)"                    ");
+//	
+//	LCD_SetBackColor(White);
+//	LCD_SetTextColor(Blue);
+
+//	LCD_DisplayStringLine(Line5, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line6, (uint8_t *)"       HAL LIB      ");
+//	LCD_DisplayStringLine(Line7, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line8, (uint8_t *)"         @80        ");
+//	LCD_DisplayStringLine(Line9, (uint8_t *)"                    ");
+
+	HAL_TIM_Base_Start_IT(&htim3);//打开定时器3
+	
+	HAL_TIM_PWM_Start(&htim16,TIM_CHANNEL_1);//第一个参数是使用哪个定时器,第二个参数是通道几
+	HAL_TIM_PWM_Start(&htim17,TIM_CHANNEL_1);//两个定时器的PWM输出的开启
+	
+	HAL_TIM_IC_Start_IT(&htim2,TIM_CHANNEL_1);//频率测量捕获定时器开启
+	HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_1);	
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+//		LED_Disp(0x01);
+//		HAL_Delay(500);
+//		LED_Disp(0x00);
+//		HAL_Delay(500);
+		
+//		char text[30];
+//		uint i=5;
+//		sprintf(text,"CNBR:%d",i);//第二个参数是我们要打印的内容
+//		LCD_DisplayStringLine(Line9, (uint8_t *)text);
+//		
+//		if(key[0].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key0down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+//		if(key[1].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key1down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+		
+		key_proc();//先判断按键
+		disp_proc();//判断完显示
+	
+//		char temp[20];//把频率上显示的频率frq1发送出去
+//		sprintf(temp,"frq=%d\r\n",frq1);//与LCD类型，也用sprintf
+//		HAL_UART_Transmit(&huart1,(uint8_t *)temp,strlen(temp),50);//需要添加库string.h
+//		//参数1：串口几，使能了串口1填串口1；参数2：要发送的数据，先强制转换；参数3：要发送的程度，可以通过函数来得出；参数4：超时时间
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
+  RCC_OscInitStruct.PLL.PLLN = 20;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the peripherals clocks
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_ADC12;
+  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+  PeriphClkInit.Adc12ClockSelection = RCC_ADC12CLKSOURCE_SYSCLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+void key_proc(void)//按键按下的过程
+{
+		if(key[0].single_flag == 1)//按键被按下
+		{
+			view = !view;
+			LCD_Clear(Black);
+			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[1].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa6_duty += 10;
+			if(pa6_duty>=100) pa6_duty = 10;
+			__HAL_TIM_SetCompare(&htim16,TIM_CHANNEL_1,pa6_duty);
+			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		if(key[2].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa7_duty += 10;
+			if(pa7_duty>=100) pa7_duty = 10;
+			__HAL_TIM_SetCompare(&htim17,TIM_CHANNEL_1,pa7_duty);
+			key[2].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[3].single_flag == 1)//按键被按下，存储数据到EEPROM的两个区域中
+		{
+			uchar frq_h = frq1>>8;//frq频率是16位的数（uint型），但是EEPROM一个位只能存8位的数，所以要拆成高8位和低8位
+			uchar frq_l = frq1&0xff;//拆成高8位和低8位
+			eeprom_write(1,frq_h);//存高8位到1的位置
+			HAL_Delay(10);//注意，要加一个延迟//延迟10ms。因为写入是需要时间的，不加延迟可能写不进去
+			eeprom_write(2,frq_l);//存低8位到2的位置
+			key[3].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+}
+
+void disp_proc(void)//显示界面的过程
+{
+	
+	if(view == 0)
+	{	
+		char text[30];
+		sprintf(text,"      Data");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+	
+		sprintf(text,"      FRQ1=%d",frq1);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"      FRQ2=%d",frq2);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+		sprintf(text,"      V1:=%.2f    ",getADC(&hadc1));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line6, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		sprintf(text,"      V2:=%.2f    ",getADC(&hadc2));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line7, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		//V1：如果显示有白块，转化成英文再输入:
+		
+		//把存进去的数再显示出来
+		//先需要把读出的数据进行一个处理
+		uint eep_temp = (eeprom_read(1)<<8)+eeprom_read(2);//先读取第一位（高8位），高8位操作右移8位
+		sprintf(text,"      FRQ_eep=%d    ",eep_temp);//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line8, (uint8_t *)text);//第3行被占用了，给它改显示到第8行
+	}
+	if(view == 1)
+	{
+		char text[30];
+		sprintf(text,"      Para");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"    PA6:%d%%",pa6_duty);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"    PA7:%d%%",pa7_duty);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+	}
+}	
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+```
 
 
 
+###### 代码--接收
+
+```interrupt.c
+#include "interrupt.h"
+#include "usart.h"
+
+struct keys key[4]={0,0,0};//有4个按键，声明成结构体数组
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//中断回调函数
+{
+	if(htim->Instance == TIM3)
+	{
+		key[0].key_sta = HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0);//板载第一个按键
+		key[1].key_sta = HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_1);//板载第一个按键
+		key[2].key_sta = HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_2);//板载第一个按键
+		key[3].key_sta = HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0);//板载第一个按键
+		
+		for(int i=0;i<4;i++)//for循环，轮询按键
+		{
+			switch(key[i].judge_sta)
+			{
+				case 0:
+				{
+					if(key[i].key_sta == 0) 
+					{
+						key[i].judge_sta = 1;
+						key[i].key_time = 0;//时间清零
+					}
+				}
+				break;
+				case 1:
+				{
+						if(key[i].key_sta == 0) //消抖过程,不能判断短按键，会跟长按键冲突
+						{
+							key[i].judge_sta = 2;//如果10ms后又判断。还是0，则证明按键真的被按下了
+						}
+						else
+						{
+							key[i].judge_sta = 0;
+						}
+				}
+				break;
+				case 2:
+				{
+					if(key[i].key_sta == 1)//按键松开
+					{
+						key[i].judge_sta = 0;//清零
+						if(key[i].key_time<70)//<700ms,10ms加一次
+						{
+							key[i].single_flag = 1;//为短按
+						}
+						key[i].key_time = 0;
+					}
+					else //在没有松开的一大段时间里，让时间+
+					{
+						key[i].key_time++;//确定究竟被按多长时间
+						if(key[i].key_time>70)//>700ms,10ms加一次
+						{
+							key[i].long_flag = 1;//为长按
+						}
+						key[i].key_time = 0;
+					}
+				}
+				break;
+			}
+		}
+	}
+}
 
 
+uint ccrl_val1 = 0,ccrl_val2 = 0;
+uint frq1 = 0,frq2 = 0;
+
+//然后写中断回调函数
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+		//首先要判断这个中断是来自哪个定时器，因为用到了TIM2和TIM3。至于判断，参照上面按键的判断方法
+	if(htim->Instance == TIM2)	
+	{
+		ccrl_val1 = HAL_TIM_ReadCapturedValue(htim,TIM_CHANNEL_1);//把定时器的计时值读到一个变量中
+		//通过这个可以把定时器锁定到TIM2中，读到它的计时值
+		__HAL_TIM_SetCounter(htim,0);//读到之后让计时值清零
+		frq1 = (80000000/80)/ccrl_val1;//÷分频系数80再÷计时值
+		HAL_TIM_IC_Start(htim,TIM_CHANNEL_1);
+	}
+	
+	if(htim->Instance == TIM3)	
+	{
+		ccrl_val2 = HAL_TIM_ReadCapturedValue(htim,TIM_CHANNEL_1);//把定时器的计时值读到一个变量中
+		//通过这个可以把定时器锁定到TIM2中，读到它的计时值
+		__HAL_TIM_SetCounter(htim,0);//读到之后让计时值清零
+		frq2 = (80000000/80)/ccrl_val2;//÷分频系数80再÷计时值
+		HAL_TIM_IC_Start(htim,TIM_CHANNEL_1);
+	}
+}
+
+//接收
+char rxdata[30];//最终处理好的数据放在这里
+uint8_t rxdat;//每次接收给一个变量存储
+uchar rx_pointer;//确定写到哪个位置了,一位一位的接收，直接写程序就能看出来
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	rxdata[rx_pointer++]=rxdat;//把上一次的数据存储一下，放在这个数组中//每次接收只能接收1位，每进一次 中断就把上一次的先存到数组中，然后一个一个拼起来成完整的字符串
+	//rx_pointer指示处理到第几位了，先用后加
+	HAL_UART_Receive_IT(&huart1,&rxdat,1);//中断模式下接收，所以Receive_IT//引用头文件usart.h
+	//参数2放的是指针变量，取地址；参数3：接收的位数，必须填成1
+}
+
+```
+
+```interruipt.c改
+#include "usart.h"
+
+//接收
+char rxdata[30];//最终处理好的数据放在这里
+uint8_t rxdat;//每次接收给一个变量存储
+uchar rx_pointer;//确定写到哪个位置了,一位一位的接收，直接写程序就能看出来
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	rxdata[rx_pointer++]=rxdat;//把上一次的数据存储一下，放在这个数组中//每次接收只能接收1位，每进一次 中断就把上一次的先存到数组中，然后一个一个拼起来成完整的字符串
+	//rx_pointer指示处理到第几位了，先用后加
+	HAL_UART_Receive_IT(&huart1,&rxdat,1);//中断模式下接收，所以Receive_IT//引用头文件usart.h
+	//参数2放的是指针变量，取地址；参数3：接收的位数，必须填成1
+}
+
+```
+
+```main.c
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.</center></h2>
+  *
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "adc.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "led.h"
+#include "lcd.h"
+#include "stdio.h"
+#include "interrupt.h"
+#include "bsp_adc.h"
+#include "i2c_hal.h"
+#include "string.h"
+#define uchar unsigned char
+#define uint unsigned int
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+extern struct keys key[];
+extern uint frq1,frq2;//就是计算得到的两个频率值
+uchar view = 0;
+void key_proc(void);
+void disp_proc(void);
+
+uchar pa6_duty = 10;//定义两个变量，分别是两个通道PWM的占空比
+uchar pa7_duty = 10;
+
+extern char rxdata[30];
+extern uint8_t rxdat;
+extern uchar rx_pointer;
+
+//此处只能存储一辆车的信息，存储多辆车改为结构体即可
+char car_type[5];//第一个变量，车辆类型
+char car_data[5];
+char car_time[13];
+void uart_rx_proc(void);
 
 
+//typedef unsigned char uchar;
+/* USER CODE END PTD */
 
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM3_Init();
+  MX_TIM16_Init();
+  MX_TIM17_Init();
+  MX_TIM2_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
+  MX_USART1_UART_Init();
+  /* USER CODE BEGIN 2 */
+	LED_Disp(0x00);//LED的初始化,让所有LED都熄灭
+	LCD_Init();//LCD初始化
+	
+	LCD_Clear(Black);
+	LCD_SetBackColor(Black);
+	LCD_SetTextColor(White);
+	
+//	LCD_DisplayStringLine(Line0, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line1, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line2, (uint8_t *)"      LCD Test      ");
+//	LCD_DisplayStringLine(Line3, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line4, (uint8_t *)"                    ");
+//	
+//	LCD_SetBackColor(White);
+//	LCD_SetTextColor(Blue);
+
+//	LCD_DisplayStringLine(Line5, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line6, (uint8_t *)"       HAL LIB      ");
+//	LCD_DisplayStringLine(Line7, (uint8_t *)"                    ");
+//	LCD_DisplayStringLine(Line8, (uint8_t *)"         @80        ");
+//	LCD_DisplayStringLine(Line9, (uint8_t *)"                    ");
+
+	HAL_TIM_Base_Start_IT(&htim3);//打开定时器3
+	
+	HAL_TIM_PWM_Start(&htim16,TIM_CHANNEL_1);//第一个参数是使用哪个定时器,第二个参数是通道几
+	HAL_TIM_PWM_Start(&htim17,TIM_CHANNEL_1);//两个定时器的PWM输出的开启
+	
+	HAL_TIM_IC_Start_IT(&htim2,TIM_CHANNEL_1);//频率测量捕获定时器开启
+	HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_1);	
+	
+	//加一个关于串口的初始化--把中断打开
+	HAL_UART_Receive_IT(&huart1,&rxdat,1);//这个语句的作用也是开一次中断
+	//这样相当于串口接收初始化就已经完成了
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+//		LED_Disp(0x01);
+//		HAL_Delay(500);
+//		LED_Disp(0x00);
+//		HAL_Delay(500);
+		
+//		char text[30];
+//		uint i=5;
+//		sprintf(text,"CNBR:%d",i);//第二个参数是我们要打印的内容
+//		LCD_DisplayStringLine(Line9, (uint8_t *)text);
+//		
+//		if(key[0].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key0down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+//		if(key[1].single_flag == 1)//按键被按下
+//		{
+//			sprintf(text,"  key1down     ");
+//			LCD_DisplayStringLine(Line8, (uint8_t *)text);
+//			
+//			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+//		}
+		
+		key_proc();//先判断按键
+		disp_proc();//判断完显示
+	
+//		char temp[20];//把频率上显示的频率frq1发送出去
+//		sprintf(temp,"frq=%d\r\n",frq1);//与LCD类型，也用sprintf
+//		HAL_UART_Transmit(&huart1,(uint8_t *)temp,strlen(temp),50);//需要添加库string.h
+//		//参数1：串口几，使能了串口1填串口1；参数2：要发送的数据，先强制转换；参数3：要发送的程度，可以通过函数来得出；参数4：超时时间
+		
+		if(rx_pointer!=0)//防止接收不完整
+		{
+			int temp=rx_pointer;
+			HAL_Delay(1);
+			if(temp==rx_pointer)uart_rx_proc();
+		}
+		
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV3;
+  RCC_OscInitStruct.PLL.PLLN = 20;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the peripherals clocks
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_ADC12;
+  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+  PeriphClkInit.Adc12ClockSelection = RCC_ADC12CLKSOURCE_SYSCLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* USER CODE BEGIN 4 */
+void key_proc(void)//按键按下的过程
+{
+		if(key[0].single_flag == 1)//按键被按下
+		{
+			view = view++;//3个界面了，!view->view++
+			if(view==3)	view=0;//清空，回到第一个界面
+			LCD_Clear(Black);//清屏
+			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[1].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa6_duty += 10;
+			if(pa6_duty>=100) pa6_duty = 10;
+			__HAL_TIM_SetCompare(&htim16,TIM_CHANNEL_1,pa6_duty);
+			key[1].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		if(key[2].single_flag == 1)//按键被按下
+		{
+			LCD_Clear(Black);
+			pa7_duty += 10;
+			if(pa7_duty>=100) pa7_duty = 10;
+			__HAL_TIM_SetCompare(&htim17,TIM_CHANNEL_1,pa7_duty);
+			key[2].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+		
+		if(key[3].single_flag == 1)//按键被按下，存储数据到EEPROM的两个区域中
+		{
+			uchar frq_h = frq1>>8;//frq频率是16位的数（uint型），但是EEPROM一个位只能存8位的数，所以要拆成高8位和低8位
+			uchar frq_l = frq1&0xff;//拆成高8位和低8位
+			eeprom_write(1,frq_h);//存高8位到1的位置
+			HAL_Delay(10);//注意，要加一个延迟//延迟10ms。因为写入是需要时间的，不加延迟可能写不进去
+			eeprom_write(2,frq_l);//存低8位到2的位置
+			key[3].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+}
+
+void disp_proc(void)//显示界面的过程
+{
+	
+	if(view == 0)
+	{	
+		char text[30];
+		sprintf(text,"      Data");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+	
+		sprintf(text,"      FRQ1=%d",frq1);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"      FRQ2=%d",frq2);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+		sprintf(text,"      V1:=%.2f    ",getADC(&hadc1));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line6, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		sprintf(text,"      V2:=%.2f    ",getADC(&hadc2));//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line7, (uint8_t *)text);//第3行被占用了，给它改显示到第6行
+		//V1：如果显示有白块，转化成英文再输入:
+		
+		//把存进去的数再显示出来
+		//先需要把读出的数据进行一个处理
+		uint eep_temp = (eeprom_read(1)<<8)+eeprom_read(2);//先读取第一位（高8位），高8位操作右移8位
+		sprintf(text,"      FRQ_eep=%d    ",eep_temp);//直接调用写的ADC读取函数//传递的参数就是ADC几，刚刚CubeMX中配置的
+		LCD_DisplayStringLine(Line8, (uint8_t *)text);//第3行被占用了，给它改显示到第8行
+	}
+	if(view == 1)
+	{
+		char text[30];
+		sprintf(text,"      Para");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"    PA6:%d%%",pa6_duty);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"    PA7:%d%%",pa7_duty);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+		//清理界面残留
+//		LCD_DisplayStringLine(Line3,(uint8_t *)text);
+//		LCD_DisplayStringLine(Line5,(uint8_t *)text);		
+	}
+	
+	if(view == 2)//接收到的放到新的界面,界面2中
+	{
+		char text[30];
+		sprintf(text,"      Car_msg   ");//message显示到第一行
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"Car_type=%s   ",car_type);//第二行开始把接收到的变量拆分成3个,分别打印出来
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"Car_data=%s   ",car_data);
+		LCD_DisplayStringLine(Line3, (uint8_t *)text);
+		sprintf(text,"Car_time=%s   ",car_time);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+	}
+}	
+
+//单独写个函数来处理接收部分
+void uart_rx_proc(void)//主要就是处理接收的内容
+{
+	//第一步，先判断有没有接收到东西。因为接收是上位机发东西，具体什么时候接收到东西，单片机是不确定的
+	if(rx_pointer>0)//如果指针不在0的位置，就是接收到了,<=0就是没接收到
+	{
+		if(rx_pointer==22)//证明接收成功
+		{
+			sscanf(rxdata,"%4s:%4s:%12s",car_type,car_data,car_time);//就处理一下接收到的东西//原始字符串，主要作用就是拆分//格式化过程
+			//把三个拆分部分分别存储到不同变量中
+		}
+		else
+		{
+			char temp[20];
+			sprintf(temp,"Error");
+			HAL_UART_Transmit(&huart1,(uint8_t *)temp,strlen(temp),50);
+		}
+		rx_pointer=0;//指针归位，准备接收下一次数据
+		memset(rxdata,0,30);//同时把这个变量给清空
+	}
+}
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+```
+
+```main,c改
+#include "string.h"
+
+extern char rxdata[30];
+extern uint8_t rxdat;
+extern uchar rx_pointer;
+
+//此处只能存储一辆车的信息，存储多辆车改为结构体即可
+char car_type[5];//第一个变量，车辆类型
+char car_data[5];
+char car_time[13];
+
+
+	//加一个关于串口的初始化--把中断打开
+	HAL_UART_Receive_IT(&huart1,&rxdat,1);//这个语句的作用也是开一次中断
+	//这样相当于串口接收初始化就已经完成了
+
+		if(rx_pointer!=0)//防止接收不完整
+		{
+			int temp=rx_pointer;
+			HAL_Delay(1);
+			if(temp==rx_pointer)uart_rx_proc();
+		}
+
+void key_proc(void)//按键按下的过程
+{
+		if(key[0].single_flag == 1)//按键被按下
+		{
+			view = view++;//3个界面了，!view->view++
+			if(view==3)	view=0;//清空，回到第一个界面
+			LCD_Clear(Black);//清屏
+			key[0].single_flag = 0;//做完以后标志位清零,避免被重复执行
+		}
+}
+
+void disp_proc(void)//显示界面的过程
+{
+	if(view == 1)
+	{
+		char text[30];
+		sprintf(text,"      Para");//第二个参数是我们要打印的内容
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"    PA6:%d%%",pa6_duty);
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"    PA7:%d%%",pa7_duty);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+		//清理界面残留
+//		LCD_DisplayStringLine(Line3,(uint8_t *)text);
+//		LCD_DisplayStringLine(Line5,(uint8_t *)text);		
+	}
+	
+	if(view == 2)//接收到的放到新的界面,界面2中
+	{
+		char text[30];
+		sprintf(text,"      Car_msg   ");//message显示到第一行
+		LCD_DisplayStringLine(Line1, (uint8_t *)text);
+		sprintf(text,"Car_type=%s   ",car_type);//第二行开始把接收到的变量拆分成3个,分别打印出来
+		LCD_DisplayStringLine(Line2, (uint8_t *)text);
+		sprintf(text,"Car_data=%s   ",car_data);
+		LCD_DisplayStringLine(Line3, (uint8_t *)text);
+		sprintf(text,"Car_time=%s   ",car_time);
+		LCD_DisplayStringLine(Line4, (uint8_t *)text);
+		
+	}
+}	
+
+//单独写个函数来处理接收部分
+void uart_rx_proc(void)//主要就是处理接收的内容
+{
+	//第一步，先判断有没有接收到东西。因为接收是上位机发东西，具体什么时候接收到东西，单片机是不确定的
+	if(rx_pointer>0)//如果指针不在0的位置，就是接收到了,<=0就是没接收到
+	{
+		if(rx_pointer==22)//证明接收成功
+		{
+			sscanf(rxdata,"%4s:%4s:%12s",car_type,car_data,car_time);//就处理一下接收到的东西//原始字符串，主要作用就是拆分//格式化过程
+			//把三个拆分部分分别存储到不同变量中
+		}
+		else
+		{
+			char temp[20];
+			sprintf(temp,"Error");
+			HAL_UART_Transmit(&huart1,(uint8_t *)temp,strlen(temp),50);
+		}
+		rx_pointer=0;//指针归位，准备接收下一次数据
+		memset(rxdata,0,30);//同时把这个变量给清空
+	}
+}
+```
 
 
 
