@@ -642,7 +642,7 @@ void assert_failed(uint8_t *file, uint32_t line)
 弹幕：就是需要 break 跳出，这样就可以10ms 后再进入循环
 弹幕：消抖用的一直都是延时，up 这个也是因为定时器配置已经算好了时间，while 空循环只是一个截止.....
 
-![[../../annex/Pasted image 20240207163430.png]]
+![[../../annex/STMCubeMX_image_17.png]]
 
 弹幕：为什么定义用 keys  key【】
 弹幕：到这觉得用外部中断更好
@@ -1014,9 +1014,9 @@ HAL_TIM_Base_Start_IT(&htim3);//打开定时器3
 
 弹幕：记得在 key_sta == 1的 if 末尾把 key_time 归零
 
-![[../../annex/Pasted image 20240207172405.png]]
+![[../../annex/STMCubeMX_image_18.png]]
 
-![[../../annex/Pasted image 20240208002414.png]]
+![[../../annex/STMCubeMX_image_19.png]]
 
 
 ###### 代码
@@ -1442,7 +1442,7 @@ void disp_proc(void)//显示界面的过程
 
 BKIN 不能用，只能选 CH 1 的，上一节用 TIM3 用作按键定时器，选 TIM 16 的 CH 1 。带 N 的输出互补 PWM。
 
-![[../../annex/Pasted image 20240207175709.png]]
+![[../../annex/STMCubeMX_image_20.png]]
 互补 PWM，正常高则地，正常低则高。（在三相控制、Bug boss 电路模型中常见）
 
 分屏系数和重装载值确定：
@@ -1451,11 +1451,11 @@ BKIN 不能用，只能选 CH 1 的，上一节用 TIM3 用作按键定时器，
 
 还有一个关于 PWM 生成的相关参数，Pulse--相当于占空比（可以在程序当中进行调节）
 
-![[../../annex/Pasted image 20240207180337.png]]
+![[../../annex/STMCubeMX_image_21.png]]
 
 
 第二个要 200 Hz
-![[../../annex/Pasted image 20240207180618.png]]
+![[../../annex/STMCubeMX_image_22.png]]
 
 弹幕：前面闪烁的，可以在按键函数那里加 LCD_Clear
 ```
@@ -1833,7 +1833,7 @@ void disp_proc(void)//显示界面的过程
 
 捕获计数器的用法、检测频率和占空比，弥补没有示波器的尴尬情况
 开发板上有一个信号发生器，555 芯片，可以输出一个频率可调的方波信号。分别通过跳线帽接到芯片上的 PA 15 和 PB 4 引脚。
-![[../../annex/Pasted image 20240207190043.png]]
+![[../../annex/STMCubeMX_image_23.png]]
 
 配置 PA 15、PB 4，同样选择 CH 1 通道。
 
@@ -1843,7 +1843,7 @@ void disp_proc(void)//显示界面的过程
 弹幕：是的，所以会有冲突，可以把按键的定时器改成未使用的
 ```
 
-![[../../annex/Pasted image 20240207191022.png]]
+![[../../annex/STMCubeMX_image_24.png]]
 作为输入模式用。
 
 
@@ -1854,35 +1854,35 @@ void disp_proc(void)//显示界面的过程
 ```
 
 
-![[../../annex/Pasted image 20240207191349.png]]
+![[../../annex/STMCubeMX_image_25.png]]
 
 这次程序同样要写到 interrupt 中，因为同样属于中断，写在一起避免重复建文件
 
 按键失效问题：换一个暂时用不到的定时器来作为按键的中断。
 
-![[../../annex/Pasted image 20240207213209.png]]
+![[../../annex/STMCubeMX_image_26.png]]
 
-![[../../annex/Pasted image 20240207213220.png]]
+![[../../annex/STMCubeMX_image_27.png]]
 
 配置：另外找一个通道（channel 2），配置成间接模式（input capture indirect mode）。
-![[../../annex/Pasted image 20240207213344.png]]
+![[../../annex/STMCubeMX_image_28.png]]
 下面我们要直接的去测上升沿，间接的去测下降沿。即可实现测量占空比的功能。
 
 弹幕：这里为什么不是高电平时间除以总时间而是除以低电平时间搞不懂
 
-![[../../annex/Pasted image 20240207213549.png]]
-![[../../annex/Pasted image 20240207213604.png]]
+![[../../annex/STMCubeMX_image_29.png]]
+![[../../annex/STMCubeMX_image_30.png]]
 
-![[../../annex/Pasted image 20240207213636.png]]
+![[../../annex/STMCubeMX_image_31.png]]
 
-![[../../annex/Pasted image 20240207213657.png]]
+![[../../annex/STMCubeMX_image_32.png]]
 
-![[../../annex/Pasted image 20240207213710.png]]
+![[../../annex/STMCubeMX_image_33.png]]
 
-![[../../annex/Pasted image 20240207213724.png]]
+![[../../annex/STMCubeMX_image_34.png]]
 
 
-![[../../annex/Pasted image 20240207213728.png]]
+![[../../annex/STMCubeMX_image_35.png]]
 
 弹幕：兄弟们切屏有上一个屏幕的残留怎么办
 弹幕：在你的 main.c 里的确认按键按下的函数（up 写的 key_proc 函数）里面加上 LCD_Clear(Black);
@@ -2397,15 +2397,15 @@ void disp_proc(void)//显示界面的过程
 ##### P 9 模数转换 ADC
 
 硬件有一个滑动变阻器，通过一个跳接帽连接到 IO 口上。
-![[../../annex/Pasted image 20240207214059.png]]
+![[../../annex/STMCubeMX_image_36.png]]
 
-![[../../annex/Pasted image 20240207214414.png]]
+![[../../annex/STMCubeMX_image_37.png]]
 
-![[../../annex/Pasted image 20240207214434.png]]
+![[../../annex/STMCubeMX_image_38.png]]
 
 创建文件不能直接写 adc. C，会冲突。
 
-![[../../annex/Pasted image 20240207215321.png]]
+![[../../annex/STMCubeMX_image_39.png]]
 
 V1：如果显示有白块，转化成英文再输入“:”
 
@@ -2793,33 +2793,33 @@ void assert_failed(uint8_t *file, uint32_t line)
 
 ##### P 10 IIC 通信--eeprom 读写
 
-![[../../annex/Pasted image 20240207220913.png]]
+![[../../annex/STMCubeMX_image_40.png]]
 24C02 是一个存储芯片（eeprom），4017T 是一个数字电位器
 
 用 GPIO_Output，比赛的时候官方回提供一个 IIC 的库，这个库可以直接用，这个库中用的是软件 IIC
 
-![[../../annex/Pasted image 20240207221402.png]]
+![[../../annex/STMCubeMX_image_41.png]]
 在 IIC 上可以挂无数个芯片，然后通过地址来识别对应叫到哪个芯片然后进行通信。
 
 首先要对官方库进行移植（iic_hal. C）基本上已经写好了，我们只须添加读写的函数即可。
 
-![[../../annex/Pasted image 20240207222406.png]]
+![[../../annex/STMCubeMX_image_42.png]]
 1 K/2 K 是容量。（01 就是 1 K，02 就是 2 K，以此类推）
 02，所以地址是 1010 A2 A1 A0 R/W。
 只需要看第一行。在最初始状态是不确定的
-![[../../annex/Pasted image 20240207222548.png]]
+![[../../annex/STMCubeMX_image_43.png]]
 
-![[../../annex/Pasted image 20240207222626.png]]
+![[../../annex/STMCubeMX_image_44.png]]
 E1 E2 E3 对应 A0 A1 A2。接地，相当于是 0。
 
 读 1，写 0。
 为什么有 3 个不确定是位？比如有 8 个 EEPROM 芯片, 用以区分不同的芯片。可以同时来控制 8 个相同的芯片，因为 IIC 总线是可以复用的，一个总线上可以挂很多个芯片
 
 弹幕：AT24C02地址的组成，由固定位（1010）和可编程位（就是自己定义，但原理图上都已经接地了其实就是000）以及最后的读写位决定
-![[../../annex/Pasted image 20240207222910.png]]
+![[../../annex/STMCubeMX_image_45.png]]
 
 
-![[../../annex/Pasted image 20240207223518.png]]
+![[../../annex/STMCubeMX_image_46.png]]
 
 弹幕：但芯片手册上的是需要 SendNotAck，希望 up 解答一下
 弹幕：WaitAck()和 SendNotAck()都行
@@ -2833,19 +2833,19 @@ E1 E2 E3 对应 A0 A1 A2。接地，相当于是 0。
 
 
 
-![[../../annex/Pasted image 20240208002558.png]]
+![[../../annex/STMCubeMX_image_47.png]]
 
-![[../../annex/Pasted image 20240208002705.png]]
+![[../../annex/STMCubeMX_image_48.png]]
 
-![[../../annex/Pasted image 20240208002744.png]]
+![[../../annex/STMCubeMX_image_49.png]]
 
-![[../../annex/Pasted image 20240208002837.png]]
+![[../../annex/STMCubeMX_image_50.png]]
 
-![[../../annex/Pasted image 20240208002933.png]]
+![[../../annex/STMCubeMX_image_51.png]]
 
-![[../../annex/Pasted image 20240208003102.png]]
+![[../../annex/STMCubeMX_image_52.png]]
 
-![[../../annex/Pasted image 20240208003814.png]]
+![[../../annex/STMCubeMX_image_53.png]]
 
 
 ###### 代码
@@ -3545,8 +3545,13 @@ void assert_failed(uint8_t *file, uint32_t line)
 
 
 
-##### P 11 
+##### P 11 UART 串口通信
 
+与 IIC 类似，也是跟外设通信的方式，串口更偏向于上位机（比如电脑）这样的设备去通信。
+IIC 则侧重于和一些芯片外设去通信。
+
+![[../../annex/STMCubeMX_image_54.png]]
+串口跟开发板的连接方式，连接到了调试器上，通过调试器（DAP Link）一起转发给电脑
 
 
 
