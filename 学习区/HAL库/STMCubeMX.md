@@ -4594,8 +4594,9 @@ void uart_rx_proc(void)//主要就是处理接收的内容
 ```
 
 
+##### 14
 
-
+![[../../annex/Pasted image 20240208232658.png]]
 
 
 
