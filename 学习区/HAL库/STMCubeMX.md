@@ -4603,27 +4603,48 @@ void uart_rx_proc(void)//主要就是处理接收的内容
 
 
 
+### HAL_UART_Receive
+
+与阻塞式发送函数 HAL_UART_Transmit 配套，有个阻塞式的接收函数HAL_UART_Receive，但此函数不常用，串口接收通常使用中断函数 HAL_UART_Receive_IT。HAL 库的串口中断比较复杂，主要流程如下：
+
+USART 1_IRQHandler：由硬件调用，不是 HAL 库函数，寄存器编程或固件库编程也需要调用此函数；
+
+HAL_UART_IRQHandler：通过中断类型（发送中断还是接收中断）来判断调用哪个函数；
+
+UART_Receive_IT：此函数可以指定，每收到若干个数据，调用一次回调函数；这是因为，每收到一个字节，都会把此函数的接收计数器-1，如果接收计数器为零，调用串口接收回调函数 HAL_UART_RxCpltCallback（实际上 HAL 库一共提供了 5 个回调函数，只有这个函数在接收完成时调用）。
+
+HAL_UART_RxCpltCallback：弱函数，用户可以在此函数中编写业务逻辑。清除中断标记，是中断处理函数一定要做的事情，但是对于用户函数，把这个操作给隐藏了
+
+![[../../annex/STMCubeMX_image_62.png]]
 
 
+![[../../annex/STMCubeMX_image_63.png]]
 
+![[../../annex/STMCubeMX_image_64.png]]
 
+```
+在上述代码中，`SysTick_Handler`函数是SysTick定时器中断的处理函数。当SysTick定时器计数达到设定的值时，它会触发这个中断，从而执行其中的代码。
+除了定时中断功能，SysTick定时器还可以用于提供延时功能。通过将SysTick定时器的计数器减去一个已知的值，并检查计数器是否为零，可以实现精确的延时功能。以下是一个示例，演示如何使用SysTick定时器提供延时功能：
+```
 
+```
+void delay_ms(uint32_t milliseconds)
+{
+  uint32_t startTick = HAL_GetTick(); // 获取当前的SysTick计数值
 
+  // 等待直到经过指定的毫秒数
+  while (HAL_GetTick() - startTick < milliseconds)
+  {
+    // 空循环
+  }
+}
+```
 
+```
+在上述代码中，`delay_ms`函数使用当前的SysTick计数值作为起始点，并在循环中检查经过的时间是否达到指定的毫秒数。这样，函数将阻塞程序执行直到延时完成。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+需要注意的是，使用SysTick定时器提供的延时功能时，它的精度受系统时钟频率的影响。如果需要更高的精度，可以使用其他定时器或外部晶振，具体取决于应用的需求。
+```
 
 
 
