@@ -3561,13 +3561,12 @@ IIC 则侧重于和一些芯片外设去通信。
 ![[../../annex/STMCubeMX_image_57.png]]
 具体看题目要求
 
-![[../../annex/Pasted image 20240208165247.png]]
-打开接收中断
+![[../../annex/STMCubeMX_image_58.png]]打开接收中断
 
 
 除了接收，更重要的是要把它解析出来。
 
-![[../../annex/Pasted image 20240208170932.png]]
+![[../../annex/STMCubeMX_image_59.png]]
 接收位数一定要填 1，每次中断只能接收 1 个字符
 
 弹幕：这个 IT 函数的意思是打开中断，用中断去接受，不是在中断里面使用
@@ -4596,12 +4595,11 @@ void uart_rx_proc(void)//主要就是处理接收的内容
 
 ##### 14
 
-![[../../annex/Pasted image 20240208232658.png]]
+![[../../annex/STMCubeMX_image_60.png]]
 
 
-
-
-
+也就是说0x00是int型，0x00u是无符号int型，0x00ul长整型
+![[../../annex/STMCubeMX_image_61.png]]
 
 
 
